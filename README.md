@@ -11,5 +11,7 @@ Uso de Hadoop para modelar la demanda eléctrica.
 - Impacto del clima
 - Alertas de sobrecarga
 
+## Dataset
+https://www.kaggle.com/datasets/uciml/electric-power-consumption-data-set
 
 
