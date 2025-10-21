@@ -1,2 +1,5 @@
 # dataset
 household_power_consumption.txt
+venv/
+data/dataset.txt
+notebook/
