@@ -3,3 +3,7 @@ household_power_consumption.txt
 venv/
 data/dataset.txt
 notebook/
+docker/producer/
+producer/__pycache__/
+spark_jobs/
+probar.md

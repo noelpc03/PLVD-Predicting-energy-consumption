@@ -1,10 +1,14 @@
 \documentclass[12pt,a4paper]{article}
-\usepackage[utf8]{inputenc}
+\usepackage{fontspec} % habilita UTF-8 nativo
 \usepackage[spanish]{babel}
 \usepackage{geometry}
 \usepackage{setspace}
 \usepackage{hyperref}
 \usepackage{titlesec}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{shapes, arrows, positioning}
+
 
 \geometry{margin=2.5cm}
 \setstretch{1.3}
@@ -72,5 +76,148 @@ El conjunto de datos resulta altamente pertinente para los objetivos del proyect
 \section*{Conclusión}
 El dataset seleccionado constituye una base sólida para el desarrollo del proyecto, ya que ofrece volumen, calidad y relevancia suficientes para implementar un sistema de predicción energética escalable mediante herramientas de procesamiento distribuido.  
 De esta manera, se busca contribuir al diseño de estrategias de eficiencia y sostenibilidad energética en el contexto de las ciudades inteligentes.
+
+\section{Fase 1: Análisis y Definición del Productor de Datos (Producer)}
+
+En esta primera etapa del proyecto se diseña el flujo general del componente \textit{Producer}, encargado de la generación y envío continuo de datos hacia el sistema distribuido basado en Hadoop. Este módulo simulará el flujo de información proveniente de sensores inteligentes instalados en una red eléctrica urbana.
+
+\subsection{Objetivo del Producer}
+El objetivo del \textit{Producer} es emular la llegada de mediciones energéticas en tiempo real, transmitiendo registros de consumo eléctrico hacia un sistema de mensajería (por ejemplo, Apache Kafka) que actúe como capa intermedia entre las fuentes de datos y el almacenamiento distribuido en HDFS.
+
+De esta forma, el sistema completo podrá procesar, analizar y visualizar los datos de consumo en tiempo real, permitiendo detectar patrones de demanda, anomalías y picos de consumo en diferentes zonas de la ciudad.
+
+\subsection{Estructura de los Datos}
+Los datos utilizados provienen de un conjunto de mediciones de energía con las siguientes variables:
+
+\begin{itemize}
+    \item \textbf{Date}: Fecha de la medición (formato \texttt{YYYY-MM-DD}).
+    \item \textbf{Time}: Hora exacta de la medición (formato \texttt{HH:MM:SS}).
+    \item \textbf{Global\_active\_power}: Potencia activa global (kW).
+    \item \textbf{Global\_reactive\_power}: Potencia reactiva global (kW).
+    \item \textbf{Voltage}: Voltaje promedio (V).
+    \item \textbf{Global\_intensity}: Intensidad de corriente (A).
+    \item \textbf{Sub\_metering\_1}: Consumo energético parcial del área 1 (Wh).
+    \item \textbf{Sub\_metering\_2}: Consumo energético parcial del área 2 (Wh).
+    \item \textbf{Sub\_metering\_3}: Consumo energético parcial del área 3 (Wh).
+\end{itemize}
+
+Estas variables reflejan el comportamiento energético de una vivienda o conjunto de zonas urbanas a lo largo del tiempo y permiten realizar análisis tanto locales como agregados sobre la red eléctrica.
+
+\subsection{Frecuencia de Envío}
+El flujo de simulación definido enviará una lectura cada \textbf{5 segundos}, representando un ritmo razonable para la actualización continua de datos de consumo en una red inteligente. Cada mensaje incluirá un único registro (una fila del dataset) en formato JSON o CSV, con su respectivo sello temporal.
+
+\subsection{Flujo de Datos}
+El flujo del \textit{Producer} seguirá las siguientes etapas:
+\begin{enumerate}
+    \item \textbf{Lectura de datos}: el módulo leerá progresivamente las filas del dataset energético.
+    \item \textbf{Estructuración}: cada fila será convertida en un mensaje estructurado, conteniendo los campos definidos y un timestamp.
+    \item \textbf{Emisión periódica}: cada 5 segundos, el \textit{Producer} enviará el siguiente mensaje al sistema de mensajería (Kafka).
+    \item \textbf{Transporte distribuido}: los mensajes se propagarán a través de los tópicos de Kafka, permitiendo su consumo por distintos módulos del sistema (almacenamiento en HDFS, análisis en Spark, visualización, etc.).
+\end{enumerate}
+
+
+\subsection{Diagrama del Flujo de Datos del Producer}
+
+% \begin{figure}[H]
+% \centering
+% \begin{tikzpicture}[
+%     node distance=2.5cm,
+%     every node/.style={font=\small},
+%     process/.style={rectangle, rounded corners, draw=blue!60, fill=blue!10, thick, minimum width=2.5cm, minimum height=1cm, align=center},
+%     storage/.style={cylinder, cylinder uses custom fill, cylinder body fill=orange!10, cylinder end fill=orange!30, shape border rotate=90, draw=orange!80!black, thick, minimum height=1.3cm, minimum width=1cm, align=center},
+%     data/.style={rectangle, draw=gray!70, thick, fill=gray!10, minimum width=2cm, minimum height=1cm, align=center},
+%     arrow/.style={thick,->,>=stealth}
+% ]
+
+% % NODES
+% \node[data] (dataset) {Dataset Energético \\ (CSV)};
+% \node[process, right of=dataset] (producer) {Producer \\ (Simulación de Sensores)};
+% \node[process, right of=producer] (kafka) {Apache Kafka \\ (Sistema de Mensajería)};
+% \node[storage, right of=kafka] (hdfs) {HDFS \\ (Almacenamiento)};
+% \node[process, below of=kafka, yshift=-0.8cm] (spark) {Apache Spark \\ (Procesamiento en Tiempo Real)};
+% \node[process, right of=hdfs] (dashboard) {Dashboard \\ (Visualización)};
+
+% % ARROWS
+% \draw[arrow] (dataset) -- node[above]{lectura periódica} (producer);
+% \draw[arrow] (producer) -- node[above]{mensajes cada 5s} (kafka);
+% \draw[arrow] (kafka) -- node[above]{stream distribuido} (hdfs);
+% \draw[arrow] (kafka) -- node[left]{consumo de datos} (spark);
+% \draw[arrow] (spark) -- node[right]{resultados procesados} (dashboard);
+% \draw[arrow] (hdfs) -- node[above]{históricos} (dashboard);
+
+% \end{tikzpicture}
+% \caption{Flujo general del Producer dentro del sistema distribuido basado en Hadoop.}
+% \end{figure}
+
+\section{Fase 2: Implementación del Entorno Distribuido con Docker}
+
+En esta fase se procede al diseño e implementación del entorno de ejecución distribuido que permitirá la interacción entre los distintos componentes del sistema. Para lograr un entorno reproducible y escalable, se utiliza \textbf{Docker} como herramienta de contenedorización y orquestación.
+
+\subsection{Objetivo de la Fase}
+El objetivo principal de esta fase es levantar un entorno funcional que permita la comunicación entre el \textit{Producer} y el sistema de mensajería \textbf{Apache Kafka}, dentro de un entorno controlado y portable. Este entorno servirá como base para el procesamiento de grandes volúmenes de datos sobre la plataforma Hadoop.
+
+\subsection{Componentes del Entorno}
+
+El ecosistema de servicios a desplegar mediante Docker estará compuesto por los siguientes contenedores:
+
+\begin{itemize}
+    \item \textbf{Zookeeper:} servicio de coordinación y gestión de clústeres necesario para el correcto funcionamiento de Kafka.
+    \item \textbf{Kafka Broker:} sistema de mensajería distribuido encargado de recibir, almacenar y distribuir los mensajes provenientes del \textit{Producer}.
+    \item \textbf{Producer:} aplicación desarrollada en Python que leerá los datos del dataset energético y los enviará a Kafka con una frecuencia de 5 segundos por mensaje.
+\end{itemize}
+
+Cada contenedor se comunicará dentro de una misma red interna de Docker, permitiendo que el flujo de datos se mantenga encapsulado y fácilmente replicable en distintos entornos.
+
+\subsection{Arquitectura del Entorno Docker}
+
+El despliegue se realizará utilizando un archivo \texttt{docker-compose.yml}, que permitirá definir los servicios y sus relaciones.  
+El esquema de comunicación entre los contenedores se muestra en la Figura~\ref{fig:docker-arch}.
+
+% \begin{figure}[H]
+% \centering
+% \begin{tikzpicture}[
+%     node distance=2.8cm,
+%     every node/.style={font=\small},
+%     service/.style={rectangle, rounded corners, draw=blue!60, fill=blue!10, thick, minimum width=2.8cm, minimum height=1cm, align=center},
+%     producer/.style={rectangle, rounded corners, draw=orange!70!black, fill=orange!10, thick, minimum width=2.8cm, minimum height=1cm, align=center},
+%     arrow/.style={thick,->,>=stealth}
+% ]
+
+% % NODES
+% \node[service] (zookeeper) {Zookeeper};
+% \node[service, right of=zookeeper] (kafka) {Kafka Broker};
+% \node[producer, right of=kafka] (producer) {Python Producer};
+
+% % CONNECTIONS
+% \draw[arrow] (zookeeper) -- node[above]{coordinación} (kafka);
+% \draw[arrow] (producer) -- node[above]{envío de datos cada 5s} (kafka);
+
+% % DOCKER NETWORK
+% \node[draw=gray!60, dashed, fit=(zookeeper)(kafka)(producer), label={[gray]below:{\textbf{Red interna Docker:} kafka-net}}, inner sep=0.5cm] {};
+
+% \end{tikzpicture}
+% \caption{Arquitectura lógica del entorno Docker para la simulación de datos energéticos.}
+% \label{fig:docker-arch}
+% \end{figure}
+
+\subsection{Configuración de los Servicios}
+En la práctica, la definición de los servicios en el archivo \texttt{docker-compose.yml} permitirá establecer:
+\begin{itemize}
+    \item Los nombres y roles de cada contenedor (por ejemplo, \texttt{zookeeper}, \texttt{kafka}, \texttt{producer}).
+    \item Las redes de comunicación internas (\texttt{kafka-net}).
+    \item Los puertos expuestos (por ejemplo, \texttt{9092} para Kafka y \texttt{2181} para Zookeeper).
+    \item Las variables de entorno requeridas por Kafka y Zookeeper para inicializar correctamente el clúster.
+\end{itemize}
+
+\subsection{Resultados Esperados}
+Al finalizar esta fase, se espera haber logrado:
+\begin{itemize}
+    \item Un entorno completamente funcional con Kafka y Zookeeper ejecutándose en contenedores Docker.
+    \item Un contenedor adicional preparado para ejecutar el \textit{Producer} que enviará los datos simulados.
+    \item Conectividad validada entre el \textit{Producer} y el Kafka Broker mediante la red interna del entorno Docker.
+\end{itemize}
+
+Este entorno constituye la infraestructura base sobre la cual se implementará el flujo de datos en tiempo real y el almacenamiento distribuido en fases posteriores.
+
 
 \end{document}
