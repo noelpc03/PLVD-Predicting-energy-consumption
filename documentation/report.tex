@@ -1,13 +1,16 @@
 \documentclass[12pt,a4paper]{article}
-\usepackage{fontspec} % habilita UTF-8 nativo
+% \usepackage{fontspec} % habilita UTF-8 nativo (solo XeLaTeX/LuaLaTeX)
+\usepackage[utf8]{inputenc} % habilita UTF-8 para pdflatex
+\usepackage[T1]{fontenc}    % codificación de fuente para pdflatex
 \usepackage[spanish]{babel}
 \usepackage{geometry}
 \usepackage{setspace}
 \usepackage{hyperref}
 \usepackage{titlesec}
 \usepackage{float}
+\usepackage{graphicx} % Para insertar imágenes
 \usepackage{tikz}
-\usetikzlibrary{shapes, arrows, positioning}
+\usetikzlibrary{shapes,arrows,positioning,fit}
 
 
 \geometry{margin=2.5cm}
@@ -26,9 +29,8 @@
     {\LARGE\textbf{Predicción de Consumo Energético en Ciudades Inteligentes}}\\[1cm]
     {\Large Proyecto de Procesamiento de Grandes Volúmenes de Datos}\\[2cm]
     {\large Autores:}\\[0.3cm]
-    {\large [Amalia Beatriz Valiente Hinojosa]}\\
-    {\large [Noel Pérez Calvo]}\\[1cm]    
-    {\large Fecha: \today}\\[4cm]
+    {\large Amalia Beatriz Valiente Hinojosa}\\
+    {\large Noel Pérez Calvo}\\[1cm]    
     \vfill
 \end{titlepage}
 
@@ -104,7 +106,7 @@ Los datos utilizados provienen de un conjunto de mediciones de energía con las 
 Estas variables reflejan el comportamiento energético de una vivienda o conjunto de zonas urbanas a lo largo del tiempo y permiten realizar análisis tanto locales como agregados sobre la red eléctrica.
 
 \subsection{Frecuencia de Envío}
-El flujo de simulación definido enviará una lectura cada \textbf{5 segundos}, representando un ritmo razonable para la actualización continua de datos de consumo en una red inteligente. Cada mensaje incluirá un único registro (una fila del dataset) en formato JSON o CSV, con su respectivo sello temporal.
+El flujo de simulación definido enviará una lectura cada \textbf{0.5 segundos}, representando un ritmo razonable para la actualización continua de datos de consumo en una red inteligente. Cada mensaje incluirá un único registro (una fila del dataset) en formato JSON o CSV, con su respectivo sello temporal.
 
 \subsection{Flujo de Datos}
 El flujo del \textit{Producer} seguirá las siguientes etapas:
@@ -118,36 +120,11 @@ El flujo del \textit{Producer} seguirá las siguientes etapas:
 
 \subsection{Diagrama del Flujo de Datos del Producer}
 
-% \begin{figure}[H]
-% \centering
-% \begin{tikzpicture}[
-%     node distance=2.5cm,
-%     every node/.style={font=\small},
-%     process/.style={rectangle, rounded corners, draw=blue!60, fill=blue!10, thick, minimum width=2.5cm, minimum height=1cm, align=center},
-%     storage/.style={cylinder, cylinder uses custom fill, cylinder body fill=orange!10, cylinder end fill=orange!30, shape border rotate=90, draw=orange!80!black, thick, minimum height=1.3cm, minimum width=1cm, align=center},
-%     data/.style={rectangle, draw=gray!70, thick, fill=gray!10, minimum width=2cm, minimum height=1cm, align=center},
-%     arrow/.style={thick,->,>=stealth}
-% ]
-
-% % NODES
-% \node[data] (dataset) {Dataset Energético \\ (CSV)};
-% \node[process, right of=dataset] (producer) {Producer \\ (Simulación de Sensores)};
-% \node[process, right of=producer] (kafka) {Apache Kafka \\ (Sistema de Mensajería)};
-% \node[storage, right of=kafka] (hdfs) {HDFS \\ (Almacenamiento)};
-% \node[process, below of=kafka, yshift=-0.8cm] (spark) {Apache Spark \\ (Procesamiento en Tiempo Real)};
-% \node[process, right of=hdfs] (dashboard) {Dashboard \\ (Visualización)};
-
-% % ARROWS
-% \draw[arrow] (dataset) -- node[above]{lectura periódica} (producer);
-% \draw[arrow] (producer) -- node[above]{mensajes cada 5s} (kafka);
-% \draw[arrow] (kafka) -- node[above]{stream distribuido} (hdfs);
-% \draw[arrow] (kafka) -- node[left]{consumo de datos} (spark);
-% \draw[arrow] (spark) -- node[right]{resultados procesados} (dashboard);
-% \draw[arrow] (hdfs) -- node[above]{históricos} (dashboard);
-
-% \end{tikzpicture}
-% \caption{Flujo general del Producer dentro del sistema distribuido basado en Hadoop.}
-% \end{figure}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{diagram.png}
+    \caption{Flujo general del Producer dentro del sistema distribuido basado en Hadoop.}
+\end{figure}
 
 \section{Fase 2: Implementación del Entorno Distribuido con Docker}
 
@@ -173,32 +150,30 @@ Cada contenedor se comunicará dentro de una misma red interna de Docker, permit
 El despliegue se realizará utilizando un archivo \texttt{docker-compose.yml}, que permitirá definir los servicios y sus relaciones.  
 El esquema de comunicación entre los contenedores se muestra en la Figura~\ref{fig:docker-arch}.
 
-% \begin{figure}[H]
-% \centering
-% \begin{tikzpicture}[
-%     node distance=2.8cm,
-%     every node/.style={font=\small},
-%     service/.style={rectangle, rounded corners, draw=blue!60, fill=blue!10, thick, minimum width=2.8cm, minimum height=1cm, align=center},
-%     producer/.style={rectangle, rounded corners, draw=orange!70!black, fill=orange!10, thick, minimum width=2.8cm, minimum height=1cm, align=center},
-%     arrow/.style={thick,->,>=stealth}
-% ]
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=2.2cm,
+    every node/.style={font=\small},
+    service/.style={rectangle, rounded corners, draw=blue!60, fill=blue!10, thick, minimum width=3.2cm, minimum height=1.1cm, align=center},
+    producer/.style={rectangle, rounded corners, draw=orange!70!black, fill=orange!10, thick, minimum width=3.2cm, minimum height=1.1cm, align=center},
+    arrow/.style={thick,->,>=stealth}
+]
+% NODOS EN VERTICAL
+\node[service] (zookeeper) {Zookeeper};
+\node[service, below of=zookeeper] (kafka) {Kafka Broker};
+\node[producer, below of=kafka] (producer) {Python Producer};
 
-% % NODES
-% \node[service] (zookeeper) {Zookeeper};
-% \node[service, right of=zookeeper] (kafka) {Kafka Broker};
-% \node[producer, right of=kafka] (producer) {Python Producer};
+% CONEXIONES
+\draw[arrow] (zookeeper) -- node[right]{coordinacion} (kafka);
+\draw[arrow] (producer) -- node[left]{envio de datos cada 5s} (kafka);
+% RED DOCKER (marco alrededor)
+\node[draw=gray!60, dashed, fit=(zookeeper)(kafka)(producer), label={[gray]below:{\textbf{Red interna Docker:} kafka-net}}, inner sep=0.5cm] {};
 
-% % CONNECTIONS
-% \draw[arrow] (zookeeper) -- node[above]{coordinación} (kafka);
-% \draw[arrow] (producer) -- node[above]{envío de datos cada 5s} (kafka);
-
-% % DOCKER NETWORK
-% \node[draw=gray!60, dashed, fit=(zookeeper)(kafka)(producer), label={[gray]below:{\textbf{Red interna Docker:} kafka-net}}, inner sep=0.5cm] {};
-
-% \end{tikzpicture}
-% \caption{Arquitectura lógica del entorno Docker para la simulación de datos energéticos.}
-% \label{fig:docker-arch}
-% \end{figure}
+\end{tikzpicture}
+\caption{Arquitectura lógica del entorno Docker para la simulación de datos energéticos.}
+\label{fig:docker-arch}
+\end{figure}
 
 \subsection{Configuración de los Servicios}
 En la práctica, la definición de los servicios en el archivo \texttt{docker-compose.yml} permitirá establecer:
