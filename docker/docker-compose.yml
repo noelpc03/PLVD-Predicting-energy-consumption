@@ -1,4 +1,5 @@
 services:
+  # ===== ZOOKEEPER (para Kafka) =====
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     container_name: zookeeper
@@ -7,7 +8,10 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    networks:
+      - hadoop-net
 
+  # ===== KAFKA =====
   kafka:
     image: confluentinc/cp-kafka:7.4.0
     container_name: kafka
@@ -22,22 +26,135 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     ports:
       - "9092:9092"
-  
+    networks:
+      - hadoop-net
+
+  # ===== HDFS NAMENODE =====
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    environment:
+      - CLUSTER_NAME=test
+    volumes:
+      - namenode_data:/hadoop/dfs/name
+    ports:
+      - "9870:9870" # Web UI
+    networks:
+      - hadoop-net
+
+  # ===== HDFS DATANODE =====
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    depends_on:
+      - namenode
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870
+    volumes:
+      - datanode_data:/hadoop/dfs/data
+      - ../data:/data # Montar dataset local
+    ports:
+      - "9864:9864"
+    networks:
+      - hadoop-net
+    healthcheck:
+      test: [ "CMD", "hdfs", "dfsadmin", "-report" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===== YARN RESOURCE MANAGER =====
+  resourcemanager:
+    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
+    container_name: resourcemanager
+    depends_on:
+      - namenode
+      - datanode
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870 datanode:9864
+    ports:
+      - "8088:8088" # Web UI
+    networks:
+      - hadoop-net
+
+  # ===== YARN NODE MANAGER =====
+  nodemanager:
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+    container_name: nodemanager
+    depends_on:
+      - namenode
+      - datanode
+      - resourcemanager
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870 datanode:9864
+    ports:
+      - "8042:8042"
+    networks:
+      - hadoop-net
+
+  # ===== HIVE METASTORE =====
+  hive-metastore:
+    image: apache/hive:3.1.3
+    container_name: hive-metastore
+    depends_on:
+      - namenode
+      - datanode
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870 datanode:9864
+    command: >
+      bash -c " /opt/hive/bin/schematool -initSchema -dbType derby && /opt/hive/bin/hive --service metastore "
+    ports:
+      - "9083:9083"
+    networks:
+      - hadoop-net
+
+  # ===== PRODUCER =====
   producer:
     image: python:3.10
     container_name: producer
     volumes:
       - ../data:/app/data
-      - ./producer:/app  # monta la carpeta con tu script Python
+      - ./producer:/app
     working_dir: /app
     depends_on:
       - kafka
     command: >
-      bash -c "
-      echo 'Esperando a que Kafka esté listo...';
-      until nc -z kafka 9092; do
-        sleep 1;
-      done;
-      echo 'Kafka listo, arrancando productor';
-      python producer.py
-      "
+      bash -c " pip install -q kafka-python pandas --no-cache-dir && echo 'Esperando a que Kafka esté listo...' && sleep 15 && echo 'Kafka listo, arrancando productor' && python producer.py "
+    networks:
+      - hadoop-net
+
+  # ===== SPARK CONSUMER =====
+  spark-consumer:
+    build:
+      context: .
+      dockerfile: spark-consumer/Dockerfile
+    container_name: spark-consumer
+    depends_on:
+      - kafka
+      - namenode
+      - datanode
+      - hive-metastore
+    environment:
+      - HADOOP_CONF_DIR=/opt/hadoop-3.3.4/etc/hadoop
+      - SPARK_CONF_DIR=/opt/spark/conf
+    volumes:
+      - ../consumer:/app/consumer
+      - checkpoints_data:/tmp/spark-checkpoints
+    working_dir: /app/consumer
+    user: root
+    command: >
+      bash -c " export IVY_CACHE_DIR=/tmp/.ivy2 && mkdir -p /tmp/.ivy2/cache && mkdir -p /tmp/.ivy2/jars && chmod -R 777 /tmp/.ivy2 && echo 'Esperando servicios...' && sleep 15 && echo 'Servicios listos, iniciando Spark Consumer...' && /opt/spark/bin/spark-submit --master local[*] --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,com.amazonaws:aws-java-sdk-bundle:1.11.901,org.apache.hadoop:hadoop-aws:3.3.2 --conf spark.sql.streaming.checkpointLocation=/tmp/spark-checkpoints --conf spark.sql.warehouse.dir=hdfs://namenode:9000/user/hive/warehouse --conf spark.hadoop.fs.defaultFS=hdfs://namenode:9000 --conf spark.sql.adaptive.enabled=true src/consumer.py "
+    ports:
+      - "4040:4040" # Spark UI
+    networks:
+      - hadoop-net
+
+volumes:
+  namenode_data:
+  datanode_data:
+  checkpoints_data:
+
+
+networks:
+  hadoop-net:
+    driver: bridge

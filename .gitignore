@@ -7,6 +7,7 @@ docker/producer/
 producer/__pycache__/
 spark_jobs/
 probar.md
+<<<<<<< Updated upstream
 
 # document
 report.aux
@@ -15,3 +16,6 @@ report.fls
 report.log
 report.out
 report.synctex.gz
+=======
+para documentacion.txt
+>>>>>>> Stashed changes

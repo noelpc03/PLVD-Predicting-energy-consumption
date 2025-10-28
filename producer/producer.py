@@ -1,35 +1,29 @@
 # producer.py
 
 import time
-from kafka import KafkaProducer
-from config import KAFKA_BROKER, TOPIC, SEND_INTERVAL, DATASET_PATH
+from config import SEND_INTERVAL, TOPIC
+from data_loader import load_data
+from message_builder import build_message
+from kafka_client import create_producer, send_message
 
 def main():
-    # Crear el producer
-    producer = KafkaProducer(
-        bootstrap_servers=KAFKA_BROKER,
-        value_serializer=lambda v: v.encode('utf-8')  # convertir strings a bytes
-    )
+    # Crear producer
+    producer = create_producer()
 
-    print(f"Conectado a Kafka en {KAFKA_BROKER}, enviando a topic '{TOPIC}'")
+    # Cargar y limpiar datos
+    df = load_data()
 
-    with open(DATASET_PATH, "r") as file:
-        # Saltar encabezado
-        header = next(file)
+    print(f"📤 Inicio de envío de {len(df)} registros cada {SEND_INTERVAL} segundos al topic '{TOPIC}'...")
 
-        for line in file:
-            line = line.strip()
-            if not line:
-                continue
+    for idx, (_, row) in enumerate(df.iterrows(), 1):
+        message = build_message(row)
+        send_message(producer, message)
+        
+        if idx % 100 == 0:
+            print(f"📊 Procesados {idx}/{len(df)} registros...")
+        
+        time.sleep(SEND_INTERVAL)
 
-            # Enviar mensaje a Kafka
-            producer.send(TOPIC, value=line)
-            print(f"📤 Enviado: {line}")
-
-            # Esperar intervalo definido
-            time.sleep(SEND_INTERVAL)
-
-    # Cerrar el producer
     producer.close()
     print("✅ Todos los mensajes enviados.")
 
