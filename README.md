@@ -16,21 +16,48 @@ Este proyecto implementa una arquitectura completa de streaming que incluye:
 Dataset → Producer (Python) → Kafka → Consumer (Spark) → HDFS (Parquet) → Hive → Dashboard
 ```
 
-## 🚀 Inicio Rápido
+---
+
+## 🚀 Inicio Rápido (3 Pasos)
+
+### **Paso 1: Verificar Requisitos**
+```bash
+./check-requirements.sh
+```
+
+### **Paso 2: Iniciar el Sistema**
+```bash
+./start.sh
+```
+
+### **Paso 3: Monitorear**
+```bash
+# Ver logs del Producer
+docker logs -f producer
+
+# Ver logs del Consumer
+docker logs -f spark-consumer
+
+# Interfaces Web:
+# HDFS:  http://localhost:9870
+# Spark: http://localhost:4040
+```
+
+---
+
+## 📖 Documentación Completa
+
+Si no tienes Docker instalado o es tu primera vez:
+- 📄 **[INSTALLATION_GUIDE.md](INSTALLATION_GUIDE.md)** - Guía completa de instalación desde cero
+- 📄 **[docker/FIXES_APPLIED.md](docker/FIXES_APPLIED.md)** - Correcciones aplicadas al sistema
+
+---
+
+## 🛑 Detener el Sistema
 
 ```bash
-# 1. Ir al directorio docker
 cd docker
-
-# 2. Inicializar HDFS
-./init-hdfs.sh
-
-# 3. Levantar el sistema completo
-docker compose up -d
-
-# 4. Ver logs
-docker logs -f producer
-docker logs -f spark-consumer
+docker compose down
 ```
 
 ## 📁 Estructura del Proyecto
