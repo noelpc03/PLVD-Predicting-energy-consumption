@@ -64,6 +64,7 @@ services:
       - namenode
     environment:
       - SERVICE_PRECONDITION=namenode:9870
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
     volumes:
       - datanode_data:/hadoop/dfs/data
       - ../data:/data # Montar dataset local
@@ -114,17 +115,26 @@ services:
       - namenode
       - datanode
     environment:
-      - SERVICE_PRECONDITION=namenode:9870 datanode:9864
-    command: >
-      bash -c " /opt/hive/bin/schematool -initSchema -dbType derby && /opt/hive/bin/hive --service metastore "
+      SERVICE_PRECONDITION: "namenode:9870 datanode:9864"
+    entrypoint: >
+      bash -c "
+      /opt/hive/bin/schematool -dbType derby -initSchema 2>/dev/null || true &&
+      /opt/hive/bin/hive --service metastore
+      "
     ports:
       - "9083:9083"
     networks:
       - hadoop-net
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
 
   # ===== PRODUCER =====
   producer:
-    image: python:3.10
+    build:
+      context: ..
+      dockerfile: docker/producer/Dockerfile
+      network: host
     container_name: producer
     volumes:
       - ../data:/app/data
@@ -134,9 +144,12 @@ services:
       kafka:
         condition: service_healthy
     command: >
-      bash -c " pip install -q kafka-python pandas --no-cache-dir && echo 'Esperando a que Kafka esté listo...' && sleep 15 && echo 'Kafka listo, arrancando productor' && python producer.py "
+      bash -c "echo 'Esperando a que Kafka esté listo...' && sleep 15 && echo 'Kafka listo, arrancando productor' && python producer.py"
     networks:
       - hadoop-net
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     restart: on-failure
 
   # ===== SPARK CONSUMER =====
@@ -168,6 +181,9 @@ services:
       - "4040:4040" # Spark UI
     networks:
       - hadoop-net
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     restart: on-failure
 
 volumes:
