@@ -19,3 +19,7 @@ para documentacion.txt
 
 docker/consumer/
 docker/spark-consumer/
+
+metastore_db
+__pycache__
+derby.log

@@ -14,7 +14,7 @@ echo "✅ Namenode listo"
 # Crear directorios necesarios
 docker exec namenode bash -c "hdfs dfs -mkdir -p /user/amalia/energy_data/streaming"
 docker exec namenode bash -c "hdfs dfs -chown -R amalia:amalia /user/amalia"
-docker exec namenode bash -c "hdfs dfs -chmod -R 755 /user/amalia"
+docker exec namenode bash -c "hdfs dfs -chmod -R 777 /user/amalia"
 
 # Crear directorio para warehouse de Hive
 docker exec namenode bash -c "hdfs dfs -mkdir -p /user/hive/warehouse"
