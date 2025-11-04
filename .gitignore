@@ -3,7 +3,6 @@ household_power_consumption.txt
 venv/
 data/dataset.txt
 notebook/
-docker/producer/
 producer/__pycache__/
 spark_jobs/
 probar.md
@@ -16,9 +15,6 @@ report.log
 report.out
 report.synctex.gz
 para documentacion.txt
-
-docker/consumer/
-docker/spark-consumer/
 
 metastore_db
 __pycache__
