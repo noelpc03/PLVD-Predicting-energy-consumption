@@ -29,7 +29,7 @@ services:
     networks:
       - hadoop-net
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server=localhost:9092"]
+      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server=localhost:9092" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -42,6 +42,7 @@ services:
     environment:
       - CLUSTER_NAME=test
       - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - HADOOP_HEAPSIZE=512 # Limitar memoria heap de Java
     volumes:
       - namenode_data:/hadoop/dfs/name
     ports:
@@ -49,12 +50,15 @@ services:
       - "9000:9000" # HDFS port
     networks:
       - hadoop-net
+    mem_limit: 1g # Límite de memoria total
+    mem_reservation: 512m # Reserva mínima
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9870"]
+      test: [ "CMD", "curl", "-f", "http://localhost:9870" ]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 60s
+    restart: unless-stopped # Reiniciar automáticamente si se cae
 
   # ===== HDFS DATANODE =====
   datanode:
@@ -65,6 +69,7 @@ services:
     environment:
       - SERVICE_PRECONDITION=namenode:9870
       - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - HADOOP_HEAPSIZE=256 # Limitar memoria heap de Java
     volumes:
       - datanode_data:/hadoop/dfs/data
       - ../data:/data # Montar dataset local
@@ -72,11 +77,14 @@ services:
       - "9864:9864"
     networks:
       - hadoop-net
+    mem_limit: 512m # Límite de memoria total
+    mem_reservation: 256m # Reserva mínima
     healthcheck:
       test: [ "CMD", "hdfs", "dfsadmin", "-report" ]
       interval: 30s
       timeout: 10s
       retries: 3
+    restart: unless-stopped # Reiniciar automáticamente si se cae
 
   # ===== YARN RESOURCE MANAGER =====
   resourcemanager:
@@ -117,10 +125,7 @@ services:
     environment:
       SERVICE_PRECONDITION: "namenode:9870 datanode:9864"
     entrypoint: >
-      bash -c "
-      /opt/hive/bin/schematool -dbType derby -initSchema 2>/dev/null || true &&
-      /opt/hive/bin/hive --service metastore
-      "
+      bash -c " /opt/hive/bin/schematool -dbType derby -initSchema 2>/dev/null || true && /opt/hive/bin/hive --service metastore "
     ports:
       - "9083:9083"
     networks:
@@ -136,6 +141,14 @@ services:
       dockerfile: docker/producer/Dockerfile
       network: host
     container_name: producer
+    env_file:
+      - ../.env
+    environment:
+      - KAFKA_BROKER=${KAFKA_BROKER:-kafka:9092}
+      - KAFKA_TOPIC=${KAFKA_TOPIC:-energy_stream}
+      - PRODUCER_SEND_INTERVAL=${PRODUCER_SEND_INTERVAL:-0.5}
+      - PRODUCER_MAX_RETRIES=${PRODUCER_MAX_RETRIES:-3}
+      - PRODUCER_DATASET_PATH=${PRODUCER_DATASET_PATH:-data/dataset.txt}
     volumes:
       - ../data:/app/data
       - ../producer:/app
@@ -158,6 +171,8 @@ services:
       context: .
       dockerfile: spark-consumer/Dockerfile
     container_name: spark-consumer
+    env_file:
+      - ../.env
     depends_on:
       kafka:
         condition: service_healthy
@@ -170,13 +185,25 @@ services:
     environment:
       - HADOOP_CONF_DIR=/opt/hadoop-3.3.4/etc/hadoop
       - SPARK_CONF_DIR=/opt/spark/conf
+      - HDFS_USER=${HDFS_USER:-amalia}
+      - HDFS_GROUP=${HDFS_GROUP:-amalia}
+      - PROJECT_NAME=${PROJECT_NAME:-energy_data}
+      - KAFKA_BROKER=${KAFKA_BROKER:-kafka:9092}
+      - KAFKA_TOPIC=${KAFKA_TOPIC:-energy_stream}
+      - HDFS_NAMENODE=${HDFS_NAMENODE:-namenode}
+      - HDFS_PORT=${HDFS_PORT:-9000}
+      - HIVE_METASTORE_URI=${HIVE_METASTORE_URI:-thrift://hive-metastore:9083}
+      - HIVE_TABLE_NAME=${HIVE_TABLE_NAME:-energy_data}
+      - SPARK_CHECKPOINT_LOCATION=${SPARK_CHECKPOINT_LOCATION:-/tmp/spark-checkpoints}
+      - SPARK_PROCESSING_INTERVAL=${SPARK_PROCESSING_INTERVAL:-60}
+      - SPARK_APP_NAME=${SPARK_APP_NAME:-EnergyDataConsumer}
     volumes:
       - ../consumer:/app/consumer
       - checkpoints_data:/tmp/spark-checkpoints
     working_dir: /app/consumer
     user: root
     command: >
-      bash -c " export IVY_CACHE_DIR=/tmp/.ivy2 && mkdir -p /tmp/.ivy2/cache && mkdir -p /tmp/.ivy2/jars && chmod -R 777 /tmp/.ivy2 && echo 'Esperando servicios...' && sleep 30 && echo 'Servicios listos, iniciando Spark Consumer...' && /opt/spark/bin/spark-submit --master local[*] --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,com.amazonaws:aws-java-sdk-bundle:1.11.901,org.apache.hadoop:hadoop-aws:3.3.2 --conf spark.sql.streaming.checkpointLocation=/tmp/spark-checkpoints --conf spark.sql.warehouse.dir=hdfs://namenode:9000/user/hive/warehouse --conf spark.hadoop.fs.defaultFS=hdfs://namenode:9000 --conf spark.sql.adaptive.enabled=true src/consumer.py "
+      bash -c " export IVY_CACHE_DIR=/tmp/.ivy2 && mkdir -p /tmp/.ivy2/cache && mkdir -p /tmp/.ivy2/jars && chmod -R 777 /tmp/.ivy2 && echo 'Esperando servicios...' && sleep 60 && echo 'Servicios listos, iniciando Spark Consumer...' && /opt/spark/bin/spark-submit --master local[2] --driver-memory 1g --executor-memory 1g --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 --repositories https://repo1.maven.org/maven2 --conf spark.sql.streaming.checkpointLocation=/tmp/spark-checkpoints --conf spark.sql.warehouse.dir=hdfs://namenode:9000/user/hive/warehouse --conf spark.hadoop.fs.defaultFS=hdfs://namenode:9000 --conf spark.sql.adaptive.enabled=true src/consumer.py "
     ports:
       - "4040:4040" # Spark UI
     networks:
@@ -184,6 +211,42 @@ services:
     dns:
       - 8.8.8.8
       - 1.1.1.1
+    mem_limit: 2g # Límite de memoria para Spark
+    mem_reservation: 1g
+    restart: unless-stopped # Reiniciar automáticamente si se cae
+
+  # ===== DASHBOARD =====
+  dashboard:
+    build:
+      context: ..
+      dockerfile: docker/dashboard/Dockerfile
+    container_name: dashboard
+    env_file:
+      - ../.env
+    depends_on:
+      namenode:
+        condition: service_healthy
+      datanode:
+        condition: service_healthy
+    environment:
+      - DASHBOARD_PORT=5000
+      - DASHBOARD_DEBUG=${DASHBOARD_DEBUG:-False}
+      - DASHBOARD_LATEST_LIMIT=${DASHBOARD_LATEST_LIMIT:-100}
+      - DASHBOARD_TIMESERIES_HOURS=${DASHBOARD_TIMESERIES_HOURS:-24}
+      - HDFS_NAMENODE=${HDFS_NAMENODE:-namenode}
+      - HDFS_PORT=${HDFS_PORT:-9000}
+      - HDFS_USER=${HDFS_USER:-amalia}
+      - PROJECT_NAME=${PROJECT_NAME:-energy_data}
+      - HIVE_METASTORE_URI=${HIVE_METASTORE_URI:-thrift://hive-metastore:9083}
+      - HIVE_TABLE_NAME=${HIVE_TABLE_NAME:-energy_data}
+    volumes:
+      - ../board:/app
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    working_dir: /app
+    ports:
+      - "${DASHBOARD_PORT:-5001}:5000"
+    networks:
+      - hadoop-net
     restart: on-failure
 
 volumes:

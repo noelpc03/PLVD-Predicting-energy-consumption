@@ -21,7 +21,7 @@ def main():
     
     # Crear Spark Session con soporte para Kafka, Hive y HDFS
     spark = SparkSession.builder \
-        .appName("EnergyDataConsumer") \
+        .appName(SPARK_APP_NAME) \
         .config("spark.sql.warehouse.dir", f"hdfs://{HDFS_NAMENODE}:{HDFS_PORT}/user/hive/warehouse") \
         .config("spark.hadoop.fs.defaultFS", f"hdfs://{HDFS_NAMENODE}:{HDFS_PORT}") \
         .config("spark.sql.streaming.checkpointLocation", CHECKPOINT_LOCATION) \
@@ -38,7 +38,7 @@ def main():
     try:
         # Configurar tabla de Hive (una sola vez al inicio)
         print("🗃️  Configurando tablas de Hive...")
-        setup_hive_table(spark, HDFS_PATH)
+        setup_hive_table(spark, HDFS_PATH, HIVE_TABLE_NAME)
         
         # 1. Leer stream de Kafka
         print("\n📖 Leyendo stream de Kafka...")

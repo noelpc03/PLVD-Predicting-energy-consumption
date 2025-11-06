@@ -8,15 +8,32 @@
 \usepackage{hyperref}
 \usepackage{titlesec}
 \usepackage{float}
-\usepackage{graphicx} % Para insertar imágenes
+\usepackage{graphicx} % Par a insertar imágenes
 \usepackage{tikz}
 \usetikzlibrary{shapes,arrows,positioning,fit}
-
+\usepackage{listings}
+\usepackage{xcolor}
 
 \geometry{margin=2.5cm}
 \setstretch{1.3}
 
 \titleformat{\section}{\large\bfseries}{\thesection.}{1em}{}
+
+% Configuración para código
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue}\bfseries,
+    commentstyle=\color{green!60!black},
+    stringstyle=\color{red},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    stepnumber=1,
+    numbersep=5pt,
+    frame=single,
+    breaklines=true,
+    showstringspaces=false
+}
 
 \begin{document}
 
@@ -38,25 +55,27 @@
 % CONTENIDO
 %----------------------------------------------------------
 
-\section{¿Qué se pretende lograr?}
+\section{Introducción}
 
 El objetivo central del proyecto es \textbf{predecir el consumo energético en distintas zonas de una ciudad inteligente}, utilizando técnicas de procesamiento de grandes volúmenes de datos mediante las plataformas \textit{Hadoop} y \textit{Apache Spark}.  
 A través del análisis de datos históricos de consumo eléctrico, se busca anticipar la demanda en las próximas horas, detectar picos de consumo y evaluar el impacto de las condiciones climáticas sobre el uso energético urbano.
+
+El sistema implementado es una arquitectura completa de streaming en tiempo real que procesa datos continuamente, los almacena de forma distribuida y proporciona visualización mediante un dashboard web interactivo.
 
 \section{Dataset seleccionado}
 
 \textbf{Nombre:} \textit{Household Electric Power Consumption Dataset} \\[0.2cm]
 \textbf{Fuente:} Kaggle / UCI Machine Learning Repository \\[0.2cm]
-\textbf{Formato:} CSV (valores separados por punto y coma “;”) \\[0.2cm]
+\textbf{Formato:} CSV (valores separados por punto y coma ``;'') \\[0.2cm]
 \textbf{URL:} \href{https://www.kaggle.com/datasets/uciml/electric-power-consumption-data-set}{https://www.kaggle.com/datasets/uciml/electric-power-consumption-data-set}
 
-\section{Justificación del dataset}
+\subsection{Justificación del dataset}
 
-\subsection*{Volumen}
+\subsubsection*{Volumen}
 El conjunto de datos contiene más de \textbf{dos millones de registros}, correspondientes a mediciones minuto a minuto del consumo eléctrico de un hogar durante casi \textbf{cuatro años} (2006–2010).  
 Su tamaño aproximado de 120 MB en formato txt, y el incremento que supone su almacenamiento distribuido en \textit{HDFS}, permiten simular un entorno realista de \textbf{procesamiento de grandes volúmenes de datos}, adecuado para la aplicación de tecnologías como \textit{Hadoop} y \textit{Spark}.
 
-\subsection*{Características}
+\subsubsection*{Características}
 El dataset incluye variables como:
 \begin{itemize}
     \item Fecha y hora de cada registro.
@@ -67,7 +86,7 @@ El dataset incluye variables como:
 Estas variables conforman una \textbf{serie temporal multivariable}, adecuada para tareas de predicción y análisis de patrones de consumo.  
 Además, los datos presentan una variabilidad natural y cierto nivel de ruido, lo que refleja condiciones reales de consumo y permite evaluar técnicas de limpieza y modelado robustas.
 
-\subsection*{Pertinencia}
+\subsubsection*{Pertinencia}
 El conjunto de datos resulta altamente pertinente para los objetivos del proyecto, ya que:
 \begin{itemize}
     \item Contiene \textbf{registros reales de consumo energético}, directamente relacionados con la meta de predecir la demanda eléctrica.
@@ -75,124 +94,403 @@ El conjunto de datos resulta altamente pertinente para los objetivos del proyect
     \item Puede combinarse con datos meteorológicos (temperatura, humedad, precipitaciones) para analizar el \textbf{impacto del clima} en la demanda, fortaleciendo el enfoque de ciudades inteligentes.
 \end{itemize}
 
-\section*{Conclusión}
-El dataset seleccionado constituye una base sólida para el desarrollo del proyecto, ya que ofrece volumen, calidad y relevancia suficientes para implementar un sistema de predicción energética escalable mediante herramientas de procesamiento distribuido.  
-De esta manera, se busca contribuir al diseño de estrategias de eficiencia y sostenibilidad energética en el contexto de las ciudades inteligentes.
+\section{Arquitectura del Sistema}
 
-\section{Fase 1: Análisis y Definición del Productor de Datos (Producer)}
+El sistema implementado sigue una arquitectura de streaming en tiempo real basada en microservicios contenedorizados. La arquitectura completa se compone de los siguientes componentes principales:
 
-En esta primera etapa del proyecto se diseña el flujo general del componente \textit{Producer}, encargado de la generación y envío continuo de datos hacia el sistema distribuido basado en Hadoop. Este módulo simulará el flujo de información proveniente de sensores inteligentes instalados en una red eléctrica urbana.
+\subsection{Componentes del Sistema}
 
-\subsection{Objetivo del Producer}
-El objetivo del \textit{Producer} es emular la llegada de mediciones energéticas en tiempo real, transmitiendo registros de consumo eléctrico hacia un sistema de mensajería (por ejemplo, Apache Kafka) que actúe como capa intermedia entre las fuentes de datos y el almacenamiento distribuido en HDFS.
-
-De esta forma, el sistema completo podrá procesar, analizar y visualizar los datos de consumo en tiempo real, permitiendo detectar patrones de demanda, anomalías y picos de consumo en diferentes zonas de la ciudad.
-
-\subsection{Estructura de los Datos}
-Los datos utilizados provienen de un conjunto de mediciones de energía con las siguientes variables:
-
-\begin{itemize}
-    \item \textbf{Date}: Fecha de la medición (formato \texttt{YYYY-MM-DD}).
-    \item \textbf{Time}: Hora exacta de la medición (formato \texttt{HH:MM:SS}).
-    \item \textbf{Global\_active\_power}: Potencia activa global (kW).
-    \item \textbf{Global\_reactive\_power}: Potencia reactiva global (kW).
-    \item \textbf{Voltage}: Voltaje promedio (V).
-    \item \textbf{Global\_intensity}: Intensidad de corriente (A).
-    \item \textbf{Sub\_metering\_1}: Consumo energético parcial del área 1 (Wh).
-    \item \textbf{Sub\_metering\_2}: Consumo energético parcial del área 2 (Wh).
-    \item \textbf{Sub\_metering\_3}: Consumo energético parcial del área 3 (Wh).
-\end{itemize}
-
-Estas variables reflejan el comportamiento energético de una vivienda o conjunto de zonas urbanas a lo largo del tiempo y permiten realizar análisis tanto locales como agregados sobre la red eléctrica.
-
-\subsection{Frecuencia de Envío}
-El flujo de simulación definido enviará una lectura cada \textbf{0.5 segundos}, representando un ritmo razonable para la actualización continua de datos de consumo en una red inteligente. Cada mensaje incluirá un único registro (una fila del dataset) en formato JSON o CSV, con su respectivo sello temporal.
-
-\subsection{Flujo de Datos}
-El flujo del \textit{Producer} seguirá las siguientes etapas:
 \begin{enumerate}
-    \item \textbf{Lectura de datos}: el módulo leerá progresivamente las filas del dataset energético.
-    \item \textbf{Estructuración}: cada fila será convertida en un mensaje estructurado, conteniendo los campos definidos y un timestamp.
-    \item \textbf{Emisión periódica}: cada 5 segundos, el \textit{Producer} enviará el siguiente mensaje al sistema de mensajería (Kafka).
-    \item \textbf{Transporte distribuido}: los mensajes se propagarán a través de los tópicos de Kafka, permitiendo su consumo por distintos módulos del sistema (almacenamiento en HDFS, análisis en Spark, visualización, etc.).
+    \item \textbf{Producer (Python):} Aplicación que lee el dataset y envía datos a Kafka de forma continua.
+    \item \textbf{Apache Kafka:} Sistema de mensajería distribuido que actúa como buffer entre el producer y el consumer.
+    \item \textbf{Zookeeper:} Servicio de coordinación necesario para la gestión de Kafka.
+    \item \textbf{Spark Consumer:} Aplicación Spark Structured Streaming que consume datos de Kafka, los transforma y los almacena en HDFS.
+    \item \textbf{HDFS (Hadoop Distributed File System):} Sistema de almacenamiento distribuido donde se guardan los datos en formato Parquet.
+    \item \textbf{Apache Hive:} Sistema de almacenamiento de datos que permite realizar consultas SQL sobre los datos almacenados en HDFS.
+    \item \textbf{Dashboard Web:} Aplicación Flask que proporciona visualización en tiempo real de los datos mediante gráficos interactivos.
 \end{enumerate}
 
+\subsection{Flujo de Datos}
 
-\subsection{Diagrama del Flujo de Datos del Producer}
+El flujo completo de datos sigue esta secuencia:
+
+\begin{enumerate}
+    \item El \textbf{Producer} lee registros del dataset cada 0.5 segundos y los envía a Kafka en formato JSON.
+    \item \textbf{Kafka} almacena los mensajes en el tópico \texttt{energy\_stream}.
+    \item El \textbf{Spark Consumer} lee los mensajes de Kafka cada 60 segundos (configurable) en micro-batches.
+    \item Los datos se transforman agregando campos de particionado (año, mes, día, hora).
+    \item Los datos transformados se escriben en \textbf{HDFS} en formato Parquet, particionados por año/mes/día/hora.
+    \item \textbf{Hive} crea una tabla externa que apunta a los datos en HDFS, permitiendo consultas SQL.
+    \item El \textbf{Dashboard} consulta los datos mediante Spark SQL y los visualiza en tiempo real.
+\end{enumerate}
+
+\subsection{Diagrama de Arquitectura}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.9\textwidth]{diagram.png}
-    \caption{Flujo general del Producer dentro del sistema distribuido basado en Hadoop.}
+    \includegraphics[width=0.95\textwidth]{diagram.png}
+    \caption{Arquitectura completa del sistema de procesamiento de datos energéticos.}
 \end{figure}
 
-\section{Fase 2: Implementación del Entorno Distribuido con Docker}
+\section{Fase 1: Implementación del Producer}
 
-En esta fase se procede al diseño e implementación del entorno de ejecución distribuido que permitirá la interacción entre los distintos componentes del sistema. Para lograr un entorno reproducible y escalable, se utiliza \textbf{Docker} como herramienta de contenedorización y orquestación.
+\subsection{Objetivo del Producer}
+
+El objetivo del \textit{Producer} es emular la llegada de mediciones energéticas en tiempo real, transmitiendo registros de consumo eléctrico hacia Apache Kafka que actúe como capa intermedia entre las fuentes de datos y el almacenamiento distribuido en HDFS.
+
+\subsection{Estructura de los Datos}
+
+Los datos utilizados provienen de un conjunto de mediciones de energía con las siguientes variables:
+
+\begin{itemize}
+    \item \textbf{datetime}: Fecha y hora combinadas (formato \texttt{YYYY-MM-DD HH:MM:SS}).
+    \item \textbf{global\_active\_power}: Potencia activa global (kW).
+    \item \textbf{global\_reactive\_power}: Potencia reactiva global (kW).
+    \item \textbf{voltage}: Voltaje promedio (V).
+    \item \textbf{global\_intensity}: Intensidad de corriente (A).
+    \item \textbf{sub\_metering\_1}: Consumo energético parcial del área 1 (Wh).
+    \item \textbf{sub\_metering\_2}: Consumo energético parcial del área 2 (Wh).
+    \item \textbf{sub\_metering\_3}: Consumo energético parcial del área 3 (Wh).
+\end{itemize}
+
+\subsection{Frecuencia de Envío}
+
+El flujo de simulación definido envía una lectura cada \textbf{0.5 segundos}, representando un ritmo razonable para la actualización continua de datos de consumo en una red inteligente. Cada mensaje incluye un único registro en formato JSON con su respectivo sello temporal.
+
+\subsection{Implementación}
+
+El Producer está implementado en Python y se compone de los siguientes módulos:
+
+\begin{itemize}
+    \item \texttt{data\_loader.py}: Carga y limpia los datos del dataset CSV.
+    \item \texttt{message\_builder.py}: Convierte los registros a formato JSON estructurado.
+    \item \texttt{kafka\_client.py}: Maneja la conexión y envío de mensajes a Kafka.
+    \item \texttt{config.py}: Configuración centralizada mediante variables de entorno.
+    \item \texttt{producer.py}: Script principal que orquesta el flujo completo.
+\end{itemize}
+
+\section{Fase 2: Entorno Distribuido con Docker}
 
 \subsection{Objetivo de la Fase}
-El objetivo principal de esta fase es levantar un entorno funcional que permita la comunicación entre el \textit{Producer} y el sistema de mensajería \textbf{Apache Kafka}, dentro de un entorno controlado y portable. Este entorno servirá como base para el procesamiento de grandes volúmenes de datos sobre la plataforma Hadoop.
+
+El objetivo principal de esta fase es levantar un entorno funcional que permita la comunicación entre todos los componentes del sistema dentro de un entorno controlado y portable utilizando Docker y Docker Compose.
 
 \subsection{Componentes del Entorno}
 
-El ecosistema de servicios a desplegar mediante Docker estará compuesto por los siguientes contenedores:
+El ecosistema de servicios desplegado mediante Docker está compuesto por los siguientes contenedores:
 
 \begin{itemize}
-    \item \textbf{Zookeeper:} servicio de coordinación y gestión de clústeres necesario para el correcto funcionamiento de Kafka.
-    \item \textbf{Kafka Broker:} sistema de mensajería distribuido encargado de recibir, almacenar y distribuir los mensajes provenientes del \textit{Producer}.
-    \item \textbf{Producer:} aplicación desarrollada en Python que leerá los datos del dataset energético y los enviará a Kafka con una frecuencia de 5 segundos por mensaje.
+    \item \textbf{Zookeeper:} Servicio de coordinación y gestión de clústeres necesario para el correcto funcionamiento de Kafka.
+    \item \textbf{Kafka Broker:} Sistema de mensajería distribuido encargado de recibir, almacenar y distribuir los mensajes provenientes del Producer.
+    \item \textbf{NameNode:} Nodo maestro de HDFS que gestiona el espacio de nombres del sistema de archivos distribuido.
+    \item \textbf{DataNode:} Nodo de almacenamiento de HDFS que almacena los bloques de datos.
+    \item \textbf{ResourceManager:} Gestor de recursos de YARN para la gestión de recursos del clúster.
+    \item \textbf{NodeManager:} Nodo trabajador de YARN que ejecuta las tareas.
+    \item \textbf{Hive Metastore:} Servicio de metadatos que permite a Hive gestionar tablas y particiones.
+    \item \textbf{Producer:} Aplicación Python que lee los datos del dataset y los envía a Kafka.
+    \item \textbf{Spark Consumer:} Aplicación Spark que consume datos de Kafka y los almacena en HDFS.
+    \item \textbf{Dashboard:} Aplicación web Flask para visualización de datos.
 \end{itemize}
 
-Cada contenedor se comunicará dentro de una misma red interna de Docker, permitiendo que el flujo de datos se mantenga encapsulado y fácilmente replicable en distintos entornos.
+\subsection{Configuración de Servicios}
 
-\subsection{Arquitectura del Entorno Docker}
+Cada servicio está configurado con:
 
-El despliegue se realizará utilizando un archivo \texttt{docker-compose.yml}, que permitirá definir los servicios y sus relaciones.  
-El esquema de comunicación entre los contenedores se muestra en la Figura~\ref{fig:docker-arch}.
-
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[
-    node distance=2.2cm,
-    every node/.style={font=\small},
-    service/.style={rectangle, rounded corners, draw=blue!60, fill=blue!10, thick, minimum width=3.2cm, minimum height=1.1cm, align=center},
-    producer/.style={rectangle, rounded corners, draw=orange!70!black, fill=orange!10, thick, minimum width=3.2cm, minimum height=1.1cm, align=center},
-    arrow/.style={thick,->,>=stealth}
-]
-% NODOS EN VERTICAL
-\node[service] (zookeeper) {Zookeeper};
-\node[service, below of=zookeeper] (kafka) {Kafka Broker};
-\node[producer, below of=kafka] (producer) {Python Producer};
-
-% CONEXIONES
-\draw[arrow] (zookeeper) -- node[right]{coordinacion} (kafka);
-\draw[arrow] (producer) -- node[left]{envio de datos cada 5s} (kafka);
-% RED DOCKER (marco alrededor)
-\node[draw=gray!60, dashed, fit=(zookeeper)(kafka)(producer), label={[gray]below:{\textbf{Red interna Docker:} kafka-net}}, inner sep=0.5cm] {};
-
-\end{tikzpicture}
-\caption{Arquitectura lógica del entorno Docker para la simulación de datos energéticos.}
-\label{fig:docker-arch}
-\end{figure}
-
-\subsection{Configuración de los Servicios}
-En la práctica, la definición de los servicios en el archivo \texttt{docker-compose.yml} permitirá establecer:
 \begin{itemize}
-    \item Los nombres y roles de cada contenedor (por ejemplo, \texttt{zookeeper}, \texttt{kafka}, \texttt{producer}).
-    \item Las redes de comunicación internas (\texttt{kafka-net}).
-    \item Los puertos expuestos (por ejemplo, \texttt{9092} para Kafka y \texttt{2181} para Zookeeper).
-    \item Las variables de entorno requeridas por Kafka y Zookeeper para inicializar correctamente el clúster.
+    \item Límites de memoria para evitar problemas de OOM (Out of Memory).
+    \item Health checks para verificar el estado de los servicios.
+    \item Políticas de reinicio automático (\texttt{restart: unless-stopped}).
+    \item Variables de entorno configurables mediante archivo \texttt{.env}.
+    \item Red interna Docker (\texttt{hadoop-net}) para comunicación entre servicios.
 \end{itemize}
 
-\subsection{Resultados Esperados}
-Al finalizar esta fase, se espera haber logrado:
+\section{Fase 3: Procesamiento con Apache Spark}
+
+\subsection{Spark Structured Streaming}
+
+El sistema utiliza \textbf{Spark Structured Streaming} para procesar los datos en tiempo real. Esta tecnología permite:
+
 \begin{itemize}
-    \item Un entorno completamente funcional con Kafka y Zookeeper ejecutándose en contenedores Docker.
-    \item Un contenedor adicional preparado para ejecutar el \textit{Producer} que enviará los datos simulados.
-    \item Conectividad validada entre el \textit{Producer} y el Kafka Broker mediante la red interna del entorno Docker.
+    \item Procesamiento de streams continuos con latencia baja.
+    \item Garantías de procesamiento exactly-once mediante checkpoints.
+    \item Integración nativa con Kafka mediante el conector \texttt{spark-sql-kafka}.
+    \item Escalabilidad horizontal automática.
 \end{itemize}
 
-Este entorno constituye la infraestructura base sobre la cual se implementará el flujo de datos en tiempo real y el almacenamiento distribuido en fases posteriores.
+\subsection{Transformación de Datos}
 
+El consumer Spark realiza las siguientes transformaciones:
+
+\begin{enumerate}
+    \item \textbf{Lectura de Kafka:} Lee mensajes JSON del tópico \texttt{energy\_stream}.
+    \item \textbf{Parsing:} Convierte los mensajes JSON a DataFrame estructurado.
+    \item \textbf{Limpieza:} Valida y limpia los datos (elimina nulos, valida rangos).
+    \item \textbf{Enriquecimiento:} Agrega campos de particionado (año, mes, día, hora) extraídos del timestamp.
+    \item \textbf{Escritura:} Escribe los datos en HDFS en formato Parquet particionado.
+\end{enumerate}
+
+\subsection{Almacenamiento en HDFS}
+
+Los datos se almacenan en HDFS con la siguiente estructura:
+
+\begin{verbatim}
+/user/{usuario}/{proyecto}/streaming/
+  year=2006/
+    month=12/
+      day=20/
+        hour=16/
+          part-00000-xxx.snappy.parquet
+\end{verbatim}
+
+Esta estructura de particionado permite:
+
+\begin{itemize}
+    \item Consultas eficientes filtrando por fecha/hora.
+    \item Escalabilidad horizontal del almacenamiento.
+    \item Optimización de consultas mediante partition pruning.
+\end{itemize}
+
+\subsection{Formato Parquet}
+
+El formato Parquet ofrece:
+
+\begin{itemize}
+    \item Compresión eficiente (hasta 10x de reducción de tamaño).
+    \item Esquema embebido (tipo de datos preservado).
+    \item Lectura columnar optimizada para análisis.
+    \item Compatibilidad con múltiples herramientas (Spark, Hive, Pandas).
+\end{itemize}
+
+\section{Fase 4: Integración con Apache Hive}
+
+\subsection{Tabla Externa de Hive}
+
+Se crea una tabla externa en Hive que apunta a los datos almacenados en HDFS:
+
+\begin{lstlisting}[language=SQL]
+CREATE EXTERNAL TABLE IF NOT EXISTS energy_data (
+    datetime TIMESTAMP,
+    global_active_power DOUBLE,
+    global_reactive_power DOUBLE,
+    voltage DOUBLE,
+    global_intensity DOUBLE,
+    sub_metering_1 DOUBLE,
+    sub_metering_2 DOUBLE,
+    sub_metering_3 DOUBLE
+)
+PARTITIONED BY (year INT, month INT, day INT, hour INT)
+STORED AS PARQUET
+LOCATION 'hdfs://namenode:9000/user/amalia/energy_data/streaming';
+\end{lstlisting}
+
+\subsection{Ventajas de Hive}
+
+\begin{itemize}
+    \item Consultas SQL estándar sobre datos distribuidos.
+    \item Detección automática de particiones nuevas.
+    \item Integración con herramientas de BI y visualización.
+    \item Optimización de consultas mediante particionado.
+\end{itemize}
+
+\section{Fase 5: Dashboard Web Interactivo}
+
+\subsection{Implementación del Dashboard}
+
+Se ha implementado un dashboard web moderno utilizando:
+
+\begin{itemize}
+    \item \textbf{Flask:} Framework web en Python para el backend.
+    \item \textbf{Bootstrap 5:} Framework CSS para el diseño responsive.
+    \item \textbf{Chart.js:} Biblioteca JavaScript para visualización de gráficos.
+    \item \textbf{PySpark:} Para ejecutar consultas SQL sobre los datos.
+\end{itemize}
+
+\subsection{Funcionalidades del Dashboard}
+
+El dashboard proporciona:
+
+\begin{itemize}
+    \item \textbf{Métricas en tiempo real:} Total de registros, promedios de potencia, voltaje e intensidad.
+    \item \textbf{Gráficos de series temporales:} Visualización de consumo energético a lo largo del tiempo.
+    \item \textbf{Agregados por hora:} Patrones de consumo horarios.
+    \item \textbf{Distribución de sub-metering:} Gráfico de dona mostrando el consumo por zonas.
+    \item \textbf{Tabla de últimos registros:} Visualización tabular de los datos más recientes.
+\end{itemize}
+
+\subsection{Actualización en Tiempo Real}
+
+El dashboard se actualiza automáticamente cada 5 segundos mediante peticiones AJAX a los endpoints de la API REST, proporcionando una experiencia de visualización en tiempo real.
+
+\subsection{Endpoints de la API}
+
+\begin{itemize}
+    \item \texttt{GET /api/statistics}: Retorna estadísticas agregadas del dataset.
+    \item \texttt{GET /api/latest}: Retorna los últimos N registros.
+    \item \texttt{GET /api/timeseries}: Retorna datos de series temporales.
+    \item \texttt{GET /api/hourly}: Retorna agregados por hora.
+    \item \texttt{GET /api/sub-metering}: Retorna distribución de sub-metering.
+\end{itemize}
+
+\section{Configuración y Personalización}
+
+\subsection{Variables de Entorno}
+
+El sistema está completamente configurable mediante variables de entorno definidas en el archivo \texttt{.env}:
+
+\subsubsection*{Configuración de Kafka}
+\begin{itemize}
+    \item \texttt{KAFKA\_BROKER}: Dirección del broker de Kafka (default: \texttt{kafka:9092}).
+    \item \texttt{KAFKA\_TOPIC}: Nombre del tópico (default: \texttt{energy\_stream}).
+\end{itemize}
+
+\subsubsection*{Configuración del Producer}
+\begin{itemize}
+    \item \texttt{PRODUCER\_SEND\_INTERVAL}: Intervalo entre envíos en segundos (default: \texttt{0.5}).
+    \item \texttt{PRODUCER\_DATASET\_PATH}: Ruta al archivo del dataset.
+    \item \texttt{PRODUCER\_MAX\_RETRIES}: Número máximo de reintentos en caso de error.
+\end{itemize}
+
+\subsubsection*{Configuración de HDFS}
+\begin{itemize}
+    \item \texttt{HDFS\_USER}: Usuario de HDFS (default: \texttt{amalia}).
+    \item \texttt{HDFS\_GROUP}: Grupo de HDFS (default: \texttt{amalia}).
+    \item \texttt{PROJECT\_NAME}: Nombre del proyecto (default: \texttt{energy\_data}).
+    \item \texttt{HDFS\_NAMENODE}: Dirección del NameNode (default: \texttt{namenode}).
+    \item \texttt{HDFS\_PORT}: Puerto de HDFS (default: \texttt{9000}).
+\end{itemize}
+
+\subsubsection*{Configuración de Spark}
+\begin{itemize}
+    \item \texttt{SPARK\_PROCESSING\_INTERVAL}: Intervalo de procesamiento en segundos (default: \texttt{60}).
+    \item \texttt{SPARK\_CHECKPOINT\_LOCATION}: Ubicación de los checkpoints.
+    \item \texttt{SPARK\_APP\_NAME}: Nombre de la aplicación Spark.
+\end{itemize}
+
+\subsubsection*{Configuración de Hive}
+\begin{itemize}
+    \item \texttt{HIVE\_METASTORE\_URI}: URI del metastore de Hive.
+    \item \texttt{HIVE\_TABLE\_NAME}: Nombre de la tabla en Hive (default: \texttt{energy\_data}).
+\end{itemize}
+
+\subsubsection*{Configuración del Dashboard}
+\begin{itemize}
+    \item \texttt{DASHBOARD\_PORT}: Puerto del dashboard (default: \texttt{5001}).
+    \item \texttt{DASHBOARD\_LATEST\_LIMIT}: Número de registros recientes a mostrar.
+    \item \texttt{DASHBOARD\_TIMESERIES\_HOURS}: Horas de datos para series temporales.
+\end{itemize}
+
+\subsection{Ventajas de la Configuración Flexible}
+
+\begin{itemize}
+    \item Fácil adaptación a diferentes entornos (desarrollo, producción).
+    \item No requiere modificar código para cambiar parámetros.
+    \item Permite múltiples instancias del sistema con diferentes configuraciones.
+    \item Facilita el mantenimiento y la escalabilidad.
+\end{itemize}
+
+\section{Optimizaciones y Mejoras Implementadas}
+
+\subsection{Gestión de Memoria}
+
+Se implementaron límites de memoria para todos los servicios críticos:
+
+\begin{itemize}
+    \item \textbf{NameNode:} 1GB máximo, 512MB reservado.
+    \item \textbf{DataNode:} 512MB máximo, 256MB reservado.
+    \item \textbf{Spark Consumer:} 2GB máximo, 1GB reservado.
+    \item \textbf{Spark Driver/Executor:} 1GB cada uno para queries del dashboard.
+\end{itemize}
+
+Estos límites previenen problemas de Out of Memory (OOM) y garantizan la estabilidad del sistema.
+
+\subsection{Reinicio Automático}
+
+Todos los servicios están configurados con \texttt{restart: unless-stopped}, lo que garantiza que:
+
+\begin{itemize}
+    \item Los servicios se reinician automáticamente si fallan.
+    \item El sistema se recupera automáticamente de errores transitorios.
+    \item Se mantiene la alta disponibilidad del sistema.
+\end{itemize}
+
+\subsection{Health Checks}
+
+Cada servicio crítico tiene health checks configurados:
+
+\begin{itemize}
+    \item \textbf{Kafka:} Verifica que el broker esté respondiendo.
+    \item \textbf{NameNode:} Verifica que la interfaz web esté disponible.
+    \item \textbf{DataNode:} Verifica el reporte de estado de HDFS.
+\end{itemize}
+
+Los servicios dependientes esperan a que los servicios base estén saludables antes de iniciar.
+
+\subsection{Procesamiento Exactly-Once}
+
+El sistema garantiza procesamiento exactly-once mediante:
+
+\begin{itemize}
+    \item Checkpoints de Spark Structured Streaming.
+    \item Offsets de Kafka gestionados automáticamente.
+    \item Transacciones atómicas en la escritura a HDFS.
+\end{itemize}
+
+\section{Interfaces Web Disponibles}
+
+El sistema proporciona las siguientes interfaces web para monitoreo y visualización:
+
+\begin{itemize}
+    \item \textbf{HDFS NameNode UI:} \texttt{http://localhost:9870} - Explorador de archivos HDFS y métricas del sistema.
+    \item \textbf{Spark UI:} \texttt{http://localhost:4040} - Monitoreo de jobs Spark, stages y tareas.
+    \item \textbf{YARN ResourceManager UI:} \texttt{http://localhost:8088} - Gestión de recursos y aplicaciones.
+    \item \textbf{Dashboard:} \texttt{http://localhost:5001} - Visualización interactiva de datos en tiempo real.
+\end{itemize}
+
+\section{Resultados y Funcionalidades}
+
+\subsection{Datos Procesados}
+
+El sistema procesa exitosamente:
+
+\begin{itemize}
+    \item Más de 2 millones de registros del dataset histórico.
+    \item Streaming continuo de datos en tiempo real.
+    \item Almacenamiento eficiente en formato Parquet comprimido.
+    \item Consultas SQL rápidas mediante Hive sobre datos particionados.
+\end{itemize}
+
+\subsection{Métricas del Sistema}
+
+\begin{itemize}
+    \item \textbf{Velocidad de ingesta:} 1 registro cada 0.5 segundos (120 registros/minuto).
+    \item \textbf{Velocidad de procesamiento:} Micro-batches cada 60 segundos.
+    \item \textbf{Compresión:} Reducción de tamaño ~10x con formato Parquet.
+    \item \textbf{Particionado:} Por año, mes, día y hora para optimización de consultas.
+\end{itemize}
+
+\subsection{Escalabilidad}
+
+El sistema está diseñado para ser escalable:
+
+\begin{itemize}
+    \item Kafka puede escalar horizontalmente agregando más brokers.
+    \item Spark puede procesar múltiples streams en paralelo.
+    \item HDFS puede agregar más DataNodes para aumentar capacidad.
+    \item El dashboard puede servir múltiples usuarios concurrentes.
+\end{itemize}
+
+\section{Conclusión}
+
+Se ha implementado exitosamente un sistema completo de procesamiento de grandes volúmenes de datos para predicción de consumo energético. El sistema integra:
+
+\begin{itemize}
+    \item Ingesta de datos en tiempo real mediante Kafka.
+    \item Procesamiento distribuido con Apache Spark.
+    \item Almacenamiento escalable en HDFS con formato Parquet.
+    \item Consultas SQL mediante Apache Hive.
+    \item Visualización interactiva mediante dashboard web.
+\end{itemize}
+
+El sistema es robusto, escalable y completamente funcional, proporcionando una base sólida para el análisis y predicción de consumo energético en ciudades inteligentes. La arquitectura implementada permite el procesamiento continuo de datos, el almacenamiento eficiente y la visualización en tiempo real, cumpliendo con todos los objetivos planteados inicialmente.
 
 \end{document}

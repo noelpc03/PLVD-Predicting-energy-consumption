@@ -33,6 +33,7 @@ def create_kafka_stream(spark, config):
         .option("kafka.bootstrap.servers", config.KAFKA_BROKER) \
         .option("subscribe", config.KAFKA_TOPIC) \
         .option("startingOffsets", "latest") \
+        .option("failOnDataLoss", "false") \
         .load()
     
     # Convertir el valor binario en texto

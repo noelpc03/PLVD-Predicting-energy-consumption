@@ -39,8 +39,9 @@ docker logs -f producer
 docker logs -f spark-consumer
 
 # Interfaces Web:
-# HDFS:  http://localhost:9870
-# Spark: http://localhost:4040
+# HDFS:     http://localhost:9870
+# Spark:    http://localhost:4040
+# Dashboard: http://localhost:5001
 ```
 
 ---
@@ -49,6 +50,7 @@ docker logs -f spark-consumer
 
 Si no tienes Docker instalado o es tu primera vez:
 - 📄 **[INSTALLATION_GUIDE.md](INSTALLATION_GUIDE.md)** - Guía completa de instalación desde cero
+- 📄 **[CONFIGURATION.md](CONFIGURATION.md)** - Configuración mediante variables de entorno
 - 📄 **[docker/FIXES_APPLIED.md](docker/FIXES_APPLIED.md)** - Correcciones aplicadas al sistema
 
 ---
@@ -110,6 +112,9 @@ PLVD-Predicting-energy-consumption/
 - ✅ Consultas SQL con Hive
 - ✅ Procesamiento exactly-once
 - ✅ Escalable y tolerante a fallos
+- ✅ Configuración flexible mediante variables de entorno
+- ✅ **Dashboard web moderno** con visualización en tiempo real
+- ✅ Gráficos interactivos y métricas en vivo
 
 ## 📖 Documentación
 

@@ -1,16 +1,20 @@
 # hive_connector.py - Configura tablas de Hive sobre los datos Parquet
 
 from pyspark.sql import SparkSession
+from config import HIVE_TABLE_NAME
 
-def setup_hive_table(spark: SparkSession, hdfs_path: str, table_name="energy_data"):
+def setup_hive_table(spark: SparkSession, hdfs_path: str, table_name=None):
     """
     Crea una tabla externa de Hive sobre los datos Parquet en HDFS
     
     Args:
         spark: SparkSession
         hdfs_path: ruta base en HDFS
-        table_name: nombre de la tabla
+        table_name: nombre de la tabla (usa config.HIVE_TABLE_NAME si es None)
     """
+    if table_name is None:
+        table_name = HIVE_TABLE_NAME
+    
     hdfs_data_path = f"{hdfs_path}/streaming"
     
     # Crear tabla externa

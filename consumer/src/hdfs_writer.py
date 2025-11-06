@@ -2,6 +2,7 @@
 
 from pyspark.sql import DataFrame
 from pyspark.sql import SparkSession
+from config import HDFS_PATH, SPARK_PROCESSING_INTERVAL
 
 def write_to_hdfs(df: DataFrame, config, checkpoint_location: str):
     """
@@ -18,6 +19,9 @@ def write_to_hdfs(df: DataFrame, config, checkpoint_location: str):
     # Path de HDFS para escribir los datos
     hdfs_output_path = f"{config.HDFS_PATH}/streaming"
     
+    # Intervalo de procesamiento desde configuración
+    processing_interval = f"{SPARK_PROCESSING_INTERVAL} seconds"
+    
     # Escribir en HDFS con particionado
     query = df.writeStream \
         .outputMode("append") \
@@ -25,7 +29,7 @@ def write_to_hdfs(df: DataFrame, config, checkpoint_location: str):
         .option("path", hdfs_output_path) \
         .option("checkpointLocation", checkpoint_location) \
         .partitionBy("year", "month", "day", "hour") \
-        .trigger(processingTime='60 seconds') \
+        .trigger(processingTime=processing_interval) \
         .start()
     
     return query

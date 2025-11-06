@@ -3,15 +3,11 @@
 
 set -e  # Salir si hay algún error
 
-echo "=========================================="
-echo "🚀 PLVD - Inicio Rápido"
-echo "=========================================="
-echo ""
-
 # Colores para output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Función para imprimir con color
@@ -28,8 +24,44 @@ print_error() {
 }
 
 print_info() {
-    echo -e "ℹ️  $1"
+    echo -e "${BLUE}ℹ️  $1${NC}"
 }
+
+# Crear .env si no existe (copiando desde .env.example)
+if [ ! -f ".env" ]; then
+    if [ -f ".env.example" ]; then
+        print_info "Creando archivo .env desde .env.example..."
+        cp .env.example .env
+        print_success "Archivo .env creado. Puedes editarlo para personalizar la configuración."
+    else
+        print_warning "Archivo .env.example no encontrado. Usando valores por defecto."
+    fi
+fi
+
+# Cargar variables de entorno desde .env
+if [ -f ".env" ]; then
+    export $(cat .env | grep -v '^#' | xargs)
+    print_info "Variables de entorno cargadas desde .env"
+fi
+
+# Valores por defecto si no están definidos
+HDFS_USER=${HDFS_USER:-amalia}
+HDFS_GROUP=${HDFS_GROUP:-amalia}
+PROJECT_NAME=${PROJECT_NAME:-energy_data}
+DASHBOARD_PORT=${DASHBOARD_PORT:-5001}
+HDFS_BASE_PATH="/user/${HDFS_USER}/${PROJECT_NAME}"
+HDFS_STREAMING_PATH="${HDFS_BASE_PATH}/streaming"
+
+echo "=========================================="
+echo "🚀 PLVD - Inicio Rápido"
+echo "=========================================="
+echo ""
+echo "⚙️  Configuración:"
+echo "   Usuario HDFS: $HDFS_USER"
+echo "   Proyecto: $PROJECT_NAME"
+echo "   Path HDFS: $HDFS_STREAMING_PATH"
+echo "   Dashboard: http://localhost:${DASHBOARD_PORT}"
+echo ""
 
 # ==== VERIFICACIONES PREVIAS ====
 echo "📋 Verificando requisitos previos..."
@@ -82,6 +114,16 @@ echo "=========================================="
 echo "🔧 Preparando el entorno..."
 echo "=========================================="
 echo ""
+
+# Asegurar que .env existe antes de ejecutar docker compose
+# (docker compose necesita el archivo para env_file)
+if [ ! -f ".env" ]; then
+    if [ -f ".env.example" ]; then
+        print_info "Creando archivo .env desde .env.example para Docker Compose..."
+        cp .env.example .env
+        print_success "Archivo .env creado."
+    fi
+fi
 
 # Ir al directorio docker
 cd docker
@@ -180,15 +222,25 @@ else
     print_warning "Consumer aún está inicializando"
 fi
 
+# Verificar Dashboard
+print_info "Verificando Dashboard..."
+sleep 5  # Dar tiempo al dashboard para iniciar
+if docker logs dashboard 2>&1 | grep -q "Running on" || docker ps | grep -q dashboard; then
+    print_success "Dashboard está disponible"
+else
+    print_warning "Dashboard aún está inicializando"
+fi
+
 echo ""
 echo "=========================================="
 echo "✅ ¡Sistema iniciado correctamente!"
 echo "=========================================="
 echo ""
 echo "📊 Interfaces Web disponibles:"
-echo "   • HDFS:  http://localhost:9870"
-echo "   • Spark: http://localhost:4040"
-echo "   • YARN:  http://localhost:8088"
+echo "   • HDFS:     http://localhost:9870"
+echo "   • Spark:    http://localhost:4040"
+echo "   • YARN:     http://localhost:8088"
+echo "   • Dashboard: http://localhost:${DASHBOARD_PORT}"
 echo ""
 echo "🔍 Comandos útiles:"
 echo "   • Ver logs del Producer:"
@@ -197,11 +249,14 @@ echo ""
 echo "   • Ver logs del Consumer:"
 echo "     docker logs -f spark-consumer"
 echo ""
+echo "   • Ver logs del Dashboard:"
+echo "     docker logs -f dashboard"
+echo ""
 echo "   • Ver estado de contenedores:"
 echo "     docker ps"
 echo ""
 echo "   • Ver datos en HDFS (después de 2-3 minutos):"
-echo "     docker exec namenode hdfs dfs -ls /user/amalia/energy_data/streaming/"
+echo "     docker exec namenode hdfs dfs -ls ${HDFS_STREAMING_PATH}/"
 echo ""
 echo "   • Detener el sistema:"
 echo "     docker compose down"

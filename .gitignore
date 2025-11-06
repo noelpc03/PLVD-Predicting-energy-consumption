@@ -1,21 +1,239 @@
-# dataset
-household_power_consumption.txt
-venv/
-data/dataset.txt
-notebook/
-producer/__pycache__/
-spark_jobs/
-probar.md
+# ============================================
+# ARCHIVOS DE CONFIGURACIÓN SENSIBLES
+# ============================================
+.env
+.env.local
+.env.*.local
 
-# document
-report.aux
-report.fdb_latexmk
-report.fls
-report.log
-report.out
-report.synctex.gz
+# ============================================
+# PYTHON
+# ============================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv
+
+# ============================================
+# DATASETS Y DATOS GRANDES
+# ============================================
+# Dataset original (muy grande para git)
+data/dataset.txt
+household_power_consumption.txt
+*.csv
+*.txt
+!requirements.txt
+!README.txt
+
+# Datos procesados
+*.parquet
+*.avro
+*.orc
+
+# ============================================
+# SPARK / HADOOP / HIVE
+# ============================================
+# Derby database (Hive metastore local)
+metastore_db/
+derby.log
+*.lck
+
+# Spark
+spark-warehouse/
+spark-warehouse/
+*.spark-warehouse
+
+# HDFS checkpoints
+checkpoints/
+checkpoints_data/
+/tmp/spark-checkpoints/
+
+# Logs de Spark/Hadoop
+logs/
+*.log
+!README.md
+
+# ============================================
+# DOCKER
+# ============================================
+# Volúmenes de Docker (no deben estar en git)
+docker/producer/data/
+docker/producer/producer/__pycache__/
+
+# ============================================
+# DOCUMENTACIÓN (LaTeX)
+# ============================================
+# Archivos auxiliares de LaTeX
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.lof
+*.lot
+*.bbl
+*.blg
+*.idx
+*.ilg
+*.ind
+
+# Solo mantener el PDF y el .tex
+# (el PDF puede estar o no, según preferencia)
+
+# ============================================
+# ARCHIVOS TEMPORALES Y DEL SISTEMA
+# ============================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ============================================
+# IDEs Y EDITORES
+# ============================================
+# VSCode
+.vscode/
+*.code-workspace
+
+# PyCharm / IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim
+*.swp
+*.swo
+*.swn
+*~
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ============================================
+# NOTEBOOKS
+# ============================================
+# Mantener notebooks pero ignorar checkpoints
+*.ipynb_checkpoints/
+.ipynb_checkpoints/
+
+# ============================================
+# ARCHIVOS DE PRUEBA Y TEMPORALES
+# ============================================
+probar.md
 para documentacion.txt
 
-metastore_db
-__pycache__
-derby.log
+# ============================================
+# ARCHIVOS DE CONFIGURACIÓN ESPECÍFICOS DEL PROYECTO
+# ============================================
+# Consumer - archivos temporales
+consumer/data/
+consumer/logs/
+consumer/config/
+consumer/spark-warehouse/
+
+# Producer - datos temporales
+producer/data/
+
+# Board - archivos temporales (si los hay)
+board/__pycache__/
+
+# ============================================
+# ARCHIVOS DE BACKUP
+# ============================================
+*.bak
+*.backup
+*.old
+*.orig
+*.save
+
+# ============================================
+# ARCHIVOS COMPRIMIDOS TEMPORALES
+# ============================================
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+!documentation/*.zip  # Si hay algún archivo de documentación comprimido que quieras incluir
+
+# ============================================
+# ARCHIVOS DE CERTIFICADOS Y CLAVES
+# ============================================
+*.pem
+*.key
+*.crt
+*.cert
+*.p12
+*.jks
+
+# ============================================
+# ARCHIVOS DE CONFIGURACIÓN LOCAL
+# ============================================
+# Mantener .env.example pero ignorar .env
+.env.example  # Este SÍ debe estar en git como template
