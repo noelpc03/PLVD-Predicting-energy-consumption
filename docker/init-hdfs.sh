@@ -18,7 +18,7 @@ echo "   Usuario: $HDFS_USER"
 echo "   Proyecto: $PROJECT_NAME"
 
 # Esperar a que Namenode esté listo
-until docker exec namenode hdfs dfsadmin -report 2>/dev/null | grep -q "Live datanodes"; do
+until docker exec namenode hdfs dfsadmin -fs hdfs://namenode:9000 -report 2>/dev/null | grep -q "Live datanodes"; do
     echo "⏳ Esperando a que Namenode esté listo..."
     sleep 2
 done
@@ -30,18 +30,18 @@ USER_PATH="/user/${HDFS_USER}"
 PROJECT_PATH="${USER_PATH}/${PROJECT_NAME}"
 STREAMING_PATH="${PROJECT_PATH}/streaming"
 
-docker exec namenode bash -c "hdfs dfs -mkdir -p ${STREAMING_PATH}"
-docker exec namenode bash -c "hdfs dfs -chown -R ${HDFS_USER}:${HDFS_GROUP} ${USER_PATH}"
-docker exec namenode bash -c "hdfs dfs -chmod -R ${HDFS_USER_PERMISSIONS} ${USER_PATH}"
+docker exec namenode bash -c "hdfs dfs -fs hdfs://namenode:9000 -mkdir -p ${STREAMING_PATH}"
+docker exec namenode bash -c "hdfs dfs -fs hdfs://namenode:9000 -chown -R ${HDFS_USER}:${HDFS_GROUP} ${USER_PATH}"
+docker exec namenode bash -c "hdfs dfs -fs hdfs://namenode:9000 -chmod -R ${HDFS_USER_PERMISSIONS} ${USER_PATH}"
 
 # Crear directorio para warehouse de Hive
-docker exec namenode bash -c "hdfs dfs -mkdir -p /user/hive/warehouse"
-docker exec namenode bash -c "hdfs dfs -chown -R hive:hive /user/hive"
-docker exec namenode bash -c "hdfs dfs -chmod -R ${HDFS_HIVE_PERMISSIONS} /user/hive"
+docker exec namenode bash -c "hdfs dfs -fs hdfs://namenode:9000 -mkdir -p /user/hive/warehouse"
+docker exec namenode bash -c "hdfs dfs -fs hdfs://namenode:9000 -chown -R hive:hive /user/hive"
+docker exec namenode bash -c "hdfs dfs -fs hdfs://namenode:9000 -chmod -R ${HDFS_HIVE_PERMISSIONS} /user/hive"
 
 echo "✅ Directorios HDFS creados:"
-docker exec namenode bash -c "hdfs dfs -ls -R ${USER_PATH}"
-docker exec namenode bash -c "hdfs dfs -ls -R /user/hive"
+docker exec namenode bash -c "hdfs dfs -fs hdfs://namenode:9000 -ls -R ${USER_PATH}"
+docker exec namenode bash -c "hdfs dfs -fs hdfs://namenode:9000 -ls -R /user/hive"
 
 echo "✅ Inicialización completada"
 

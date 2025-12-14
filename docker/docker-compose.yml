@@ -277,7 +277,7 @@ services:
       - journalnode3
     environment:
       - SERVICE_PRECONDITION=namenode:9870
-      - CORE_CONF_fs_defaultFS=hdfs://mycluster
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
       - HDFS_CONF_dfs_replication=3
       - HADOOP_HEAPSIZE=256 # Limitar memoria heap de Java
     volumes:
@@ -308,7 +308,7 @@ services:
       - journalnode3
     environment:
       - SERVICE_PRECONDITION=namenode:9870
-      - CORE_CONF_fs_defaultFS=hdfs://mycluster
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
       - HDFS_CONF_dfs_replication=3
       - HADOOP_HEAPSIZE=256
     volumes:
@@ -336,7 +336,7 @@ services:
       - journalnode3
     environment:
       - SERVICE_PRECONDITION=namenode:9870
-      - CORE_CONF_fs_defaultFS=hdfs://mycluster
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
       - HDFS_CONF_dfs_replication=3
       - HADOOP_HEAPSIZE=256
     volumes:

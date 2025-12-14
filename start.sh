@@ -3,6 +3,9 @@
 
 set -e  # Salir si hay algún error
 
+# Guardar directorio raíz del proyecto
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Colores para output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -136,11 +139,15 @@ cd docker
 
 # Detener contenedores previos si existen
 print_info "Deteniendo contenedores previos (si existen)..."
+cd "${PROJECT_ROOT}/docker"
 docker compose down &> /dev/null || true
+cd "${PROJECT_ROOT}"
 
 # Construir imágenes
 print_info "Construyendo imágenes Docker (esto puede tomar 5-10 minutos la primera vez)..."
+cd "${PROJECT_ROOT}/docker"
 docker compose build
+cd "${PROJECT_ROOT}"
 
 print_success "Imágenes construidas correctamente"
 
@@ -152,7 +159,9 @@ echo ""
 
 # Fase 1: Servicios base
 print_info "Fase 1: Iniciando Zookeeper, Kafka (3 brokers), JournalNodes, HDFS..."
+cd "${PROJECT_ROOT}/docker"
 docker compose up -d zookeeper kafka kafka2 kafka3 journalnode1 journalnode2 journalnode3 namenode namenode-standby datanode datanode2 datanode3
+cd "${PROJECT_ROOT}"
 
 print_info "Esperando a que los servicios estén listos (60 segundos)..."
 for i in {60..1}; do
@@ -226,14 +235,18 @@ echo ""
 
 # Fase 2: Inicializar HDFS
 print_info "Fase 2: Inicializando directorios en HDFS..."
-chmod +x init-hdfs.sh
+chmod +x "${PROJECT_ROOT}/docker/init-hdfs.sh"
+cd "${PROJECT_ROOT}/docker"
 ./init-hdfs.sh
+cd "${PROJECT_ROOT}"
 
 echo ""
 
 # Fase 3: Resto de servicios
 print_info "Fase 3: Iniciando Producer, Consumer y servicios restantes..."
+cd "${PROJECT_ROOT}/docker"
 docker compose up -d
+cd "${PROJECT_ROOT}"
 
 print_success "Todos los servicios iniciados"
 
