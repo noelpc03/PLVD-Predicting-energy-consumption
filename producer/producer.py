@@ -21,8 +21,10 @@ def main():
         
         if idx % 100 == 0:
             print(f"📊 Procesados {idx}/{len(df)} registros...")
-        
-        time.sleep(SEND_INTERVAL)
+
+        # Opcional: pausar si se configuró un intervalo
+        if SEND_INTERVAL > 0:
+            time.sleep(SEND_INTERVAL)
 
     producer.close()
     print("✅ Todos los mensajes enviados.")

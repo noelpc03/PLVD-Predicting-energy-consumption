@@ -1,3 +1,8 @@
+# Configuración de buildkit para timeouts más largos
+x-buildkit-args: &buildkit-args
+  BUILDKIT_STEP_LOG_MAX_SIZE: "10485760"
+  BUILDKIT_STEP_LOG_MAX_SPEED: "10485760"
+
 services:
   # ===== ZOOKEEPER (para Kafka) =====
   zookeeper:
@@ -11,7 +16,7 @@ services:
     networks:
       - hadoop-net
 
-  # ===== KAFKA =====
+  # ===== KAFKA BROKER 1 =====
   kafka:
     image: confluentinc/cp-kafka:7.4.0
     container_name: kafka
@@ -23,7 +28,9 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
     ports:
       - "9092:9092"
     networks:
@@ -34,31 +41,227 @@ services:
       timeout: 10s
       retries: 5
       start_period: 40s
+    restart: unless-stopped
 
-  # ===== HDFS NAMENODE =====
+  # ===== KAFKA BROKER 2 =====
+  kafka2:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka2
+    depends_on:
+      - zookeeper
+      - kafka
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka2:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+    ports:
+      - "9093:9093"
+    networks:
+      - hadoop-net
+    healthcheck:
+      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server=localhost:9093" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+
+  # ===== KAFKA BROKER 3 =====
+  kafka3:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka3
+    depends_on:
+      - zookeeper
+      - kafka
+      - kafka2
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka3:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+    ports:
+      - "9094:9094"
+    networks:
+      - hadoop-net
+    healthcheck:
+      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server=localhost:9094" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+
+  # ===== HDFS NAMENODE (ACTIVO) =====
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
     container_name: namenode
     environment:
       - CLUSTER_NAME=test
-      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
-      - HADOOP_HEAPSIZE=512 # Limitar memoria heap de Java
+      - CORE_CONF_fs_defaultFS=hdfs://mycluster
+      - CORE_CONF_hadoop_tmp_dir=/hadoop/tmp
+      - HDFS_CONF_dfs_replication=3
+      - HDFS_CONF_dfs_namenode_name_dir=/hadoop/dfs/name
+      - HDFS_CONF_dfs_namenode_datanode_registration_ip___check=false
+      - HDFS_CONF_dfs_permissions_enabled=false
+      - HDFS_CONF_dfs_namenode_http___address=namenode:9870
+      - HDFS_CONF_dfs_namenode_rpc___address=namenode:9000
+      - HDFS_CONF_dfs_namenode_shared___edits___dir=qjournal://journalnode1:8485;journalnode2:8485;journalnode3:8485/mycluster
+      - HDFS_CONF_dfs_journalnode_edits___dir=/hadoop/journal
+      - HDFS_CONF_dfs_client_failover_proxy_provider_mycluster=org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider
+      - HDFS_CONF_dfs_ha_namenodes_mycluster=nn1,nn2
+      - HDFS_CONF_dfs_namenode_rpc___address_mycluster___nn1=namenode:9000
+      - HDFS_CONF_dfs_namenode_rpc___address_mycluster___nn2=namenode-standby:9000
+      - HDFS_CONF_dfs_namenode_http___address_mycluster___nn1=namenode:9870
+      - HDFS_CONF_dfs_namenode_http___address_mycluster___nn2=namenode-standby:9871
+      - HDFS_CONF_dfs_ha_automatic___failover_enabled_mycluster=true
+      - HDFS_CONF_dfs_ha_automatic___failover_enabled=true
+      - HDFS_CONF_ha_zookeeper_quorum=zookeeper:2181
+      - HADOOP_HEAPSIZE=512
     volumes:
       - namenode_data:/hadoop/dfs/name
     ports:
       - "9870:9870" # Web UI
-      - "9000:9000" # HDFS port
+      - "19000:9000" # HDFS port (mapeado a 19000 para evitar conflictos)
     networks:
       - hadoop-net
-    mem_limit: 1g # Límite de memoria total
-    mem_reservation: 512m # Reserva mínima
+    mem_limit: 1g
+    mem_reservation: 512m
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:9870" ]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 60s
-    restart: unless-stopped # Reiniciar automáticamente si se cae
+    restart: unless-stopped
+
+  # ===== HDFS NAMENODE (STANDBY) =====
+  namenode-standby:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode-standby
+    depends_on:
+      - namenode
+      - journalnode1
+      - journalnode2
+      - journalnode3
+    environment:
+      - CLUSTER_NAME=test
+      - CORE_CONF_fs_defaultFS=hdfs://mycluster
+      - CORE_CONF_hadoop_tmp_dir=/hadoop/tmp
+      - HDFS_CONF_dfs_replication=3
+      - HDFS_CONF_dfs_namenode_name_dir=/hadoop/dfs/name
+      - HDFS_CONF_dfs_namenode_datanode_registration_ip___check=false
+      - HDFS_CONF_dfs_permissions_enabled=false
+      - HDFS_CONF_dfs_namenode_http___address=namenode-standby:9871
+      - HDFS_CONF_dfs_namenode_rpc___address=namenode-standby:9000
+      - HDFS_CONF_dfs_namenode_shared___edits___dir=qjournal://journalnode1:8485;journalnode2:8485;journalnode3:8485/mycluster
+      - HDFS_CONF_dfs_journalnode_edits___dir=/hadoop/journal
+      - HDFS_CONF_dfs_client_failover_proxy_provider_mycluster=org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider
+      - HDFS_CONF_dfs_ha_namenodes_mycluster=nn1,nn2
+      - HDFS_CONF_dfs_namenode_rpc___address_mycluster___nn1=namenode:9000
+      - HDFS_CONF_dfs_namenode_rpc___address_mycluster___nn2=namenode-standby:9000
+      - HDFS_CONF_dfs_namenode_http___address_mycluster___nn1=namenode:9870
+      - HDFS_CONF_dfs_namenode_http___address_mycluster___nn2=namenode-standby:9871
+      - HDFS_CONF_dfs_ha_automatic___failover_enabled_mycluster=true
+      - HDFS_CONF_dfs_ha_automatic___failover_enabled=true
+      - HDFS_CONF_ha_zookeeper_quorum=zookeeper:2181
+      - HADOOP_HEAPSIZE=512
+    volumes:
+      - namenode_standby_data:/hadoop/dfs/name
+    ports:
+      - "9871:9871" # Web UI standby
+      - "19001:9000" # HDFS port standby (mapeado a 19001 para evitar conflictos)
+    networks:
+      - hadoop-net
+    mem_limit: 1g
+    mem_reservation: 512m
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9871" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # ===== HDFS JOURNALNODE 1 =====
+  journalnode1:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: journalnode1
+    depends_on:
+      - zookeeper
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://mycluster
+      - HDFS_CONF_dfs_journalnode_edits___dir=/hadoop/journal
+      - HDFS_CONF_dfs_journalnode_rpc___address=journalnode1:8485
+      - HDFS_CONF_dfs_journalnode_http___address=journalnode1:8480
+      - HADOOP_HEAPSIZE=256
+    volumes:
+      - journalnode1_data:/hadoop/journal
+    ports:
+      - "8480:8480" # HTTP
+      - "8485:8485" # RPC
+    networks:
+      - hadoop-net
+    mem_limit: 512m
+    mem_reservation: 256m
+    command: ["/opt/hadoop/bin/hdfs", "journalnode"]
+    restart: unless-stopped
+
+  # ===== HDFS JOURNALNODE 2 =====
+  journalnode2:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: journalnode2
+    depends_on:
+      - zookeeper
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://mycluster
+      - HDFS_CONF_dfs_journalnode_edits___dir=/hadoop/journal
+      - HDFS_CONF_dfs_journalnode_rpc___address=journalnode2:8485
+      - HDFS_CONF_dfs_journalnode_http___address=journalnode2:8480
+      - HADOOP_HEAPSIZE=256
+    volumes:
+      - journalnode2_data:/hadoop/journal
+    ports:
+      - "8481:8480" # HTTP
+      - "8486:8485" # RPC
+    networks:
+      - hadoop-net
+    mem_limit: 512m
+    mem_reservation: 256m
+    command: ["/opt/hadoop/bin/hdfs", "journalnode"]
+    restart: unless-stopped
+
+  # ===== HDFS JOURNALNODE 3 =====
+  journalnode3:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: journalnode3
+    depends_on:
+      - zookeeper
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://mycluster
+      - HDFS_CONF_dfs_journalnode_edits___dir=/hadoop/journal
+      - HDFS_CONF_dfs_journalnode_rpc___address=journalnode3:8485
+      - HDFS_CONF_dfs_journalnode_http___address=journalnode3:8480
+      - HADOOP_HEAPSIZE=256
+    volumes:
+      - journalnode3_data:/hadoop/journal
+    ports:
+      - "8482:8480" # HTTP
+      - "8487:8485" # RPC
+    networks:
+      - hadoop-net
+    mem_limit: 512m
+    mem_reservation: 256m
+    command: ["/opt/hadoop/bin/hdfs", "journalnode"]
+    restart: unless-stopped
 
   # ===== HDFS DATANODE =====
   datanode:
@@ -66,9 +269,14 @@ services:
     container_name: datanode
     depends_on:
       - namenode
+      - namenode-standby
+      - journalnode1
+      - journalnode2
+      - journalnode3
     environment:
       - SERVICE_PRECONDITION=namenode:9870
-      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - CORE_CONF_fs_defaultFS=hdfs://mycluster
+      - HDFS_CONF_dfs_replication=3
       - HADOOP_HEAPSIZE=256 # Limitar memoria heap de Java
     volumes:
       - datanode_data:/hadoop/dfs/data
@@ -85,6 +293,62 @@ services:
       timeout: 10s
       retries: 3
     restart: unless-stopped # Reiniciar automáticamente si se cae
+
+  # ===== HDFS DATANODE 2 =====
+  datanode2:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode2
+    depends_on:
+      - namenode
+      - namenode-standby
+      - journalnode1
+      - journalnode2
+      - journalnode3
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870
+      - CORE_CONF_fs_defaultFS=hdfs://mycluster
+      - HDFS_CONF_dfs_replication=3
+      - HADOOP_HEAPSIZE=256
+    volumes:
+      - datanode2_data:/hadoop/dfs/data
+    networks:
+      - hadoop-net
+    mem_limit: 512m
+    mem_reservation: 256m
+    healthcheck:
+      test: [ "CMD", "hdfs", "dfsadmin", "-report" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===== HDFS DATANODE 3 =====
+  datanode3:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode3
+    depends_on:
+      - namenode
+      - namenode-standby
+      - journalnode1
+      - journalnode2
+      - journalnode3
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870
+      - CORE_CONF_fs_defaultFS=hdfs://mycluster
+      - HDFS_CONF_dfs_replication=3
+      - HADOOP_HEAPSIZE=256
+    volumes:
+      - datanode3_data:/hadoop/dfs/data
+    networks:
+      - hadoop-net
+    mem_limit: 512m
+    mem_reservation: 256m
+    healthcheck:
+      test: [ "CMD", "hdfs", "dfsadmin", "-report" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
 
   # ===== YARN RESOURCE MANAGER =====
   resourcemanager:
@@ -144,7 +408,7 @@ services:
     env_file:
       - ../.env
     environment:
-      - KAFKA_BROKER=${KAFKA_BROKER:-kafka:9092}
+      - KAFKA_BROKER=${KAFKA_BROKER:-kafka:9092,kafka2:9093,kafka3:9094}
       - KAFKA_TOPIC=${KAFKA_TOPIC:-energy_stream}
       - PRODUCER_SEND_INTERVAL=${PRODUCER_SEND_INTERVAL:-0.5}
       - PRODUCER_MAX_RETRIES=${PRODUCER_MAX_RETRIES:-3}
@@ -155,6 +419,10 @@ services:
     working_dir: /app
     depends_on:
       kafka:
+        condition: service_healthy
+      kafka2:
+        condition: service_healthy
+      kafka3:
         condition: service_healthy
     command: >
       bash -c "echo 'Esperando a que Kafka esté listo...' && sleep 15 && echo 'Kafka listo, arrancando productor' && python producer.py"
@@ -176,10 +444,18 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      kafka2:
+        condition: service_healthy
+      kafka3:
+        condition: service_healthy
       namenode:
         condition: service_healthy
       datanode:
         condition: service_healthy
+      datanode2:
+        condition: service_started
+      datanode3:
+        condition: service_started
       hive-metastore:
         condition: service_started
     environment:
@@ -188,7 +464,7 @@ services:
       - HDFS_USER=${HDFS_USER:-amalia}
       - HDFS_GROUP=${HDFS_GROUP:-amalia}
       - PROJECT_NAME=${PROJECT_NAME:-energy_data}
-      - KAFKA_BROKER=${KAFKA_BROKER:-kafka:9092}
+      - KAFKA_BROKER=${KAFKA_BROKER:-kafka:9092,kafka2:9093,kafka3:9094}
       - KAFKA_TOPIC=${KAFKA_TOPIC:-energy_stream}
       - HDFS_NAMENODE=${HDFS_NAMENODE:-namenode}
       - HDFS_PORT=${HDFS_PORT:-9000}
@@ -203,7 +479,7 @@ services:
     working_dir: /app/consumer
     user: root
     command: >
-      bash -c " export IVY_CACHE_DIR=/tmp/.ivy2 && mkdir -p /tmp/.ivy2/cache && mkdir -p /tmp/.ivy2/jars && chmod -R 777 /tmp/.ivy2 && echo 'Esperando servicios...' && sleep 60 && echo 'Servicios listos, iniciando Spark Consumer...' && /opt/spark/bin/spark-submit --master local[2] --driver-memory 1g --executor-memory 1g --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 --repositories https://repo1.maven.org/maven2 --conf spark.sql.streaming.checkpointLocation=/tmp/spark-checkpoints --conf spark.sql.warehouse.dir=hdfs://namenode:9000/user/hive/warehouse --conf spark.hadoop.fs.defaultFS=hdfs://namenode:9000 --conf spark.sql.adaptive.enabled=true src/consumer.py "
+      bash -c " export IVY_CACHE_DIR=/tmp/.ivy2 && mkdir -p /tmp/.ivy2/cache && mkdir -p /tmp/.ivy2/jars && chmod -R 777 /tmp/.ivy2 && echo 'Esperando servicios...' && sleep 60 && echo 'Servicios listos, iniciando Spark Consumer...' && /opt/spark/bin/spark-submit --master local[2] --driver-memory 1g --executor-memory 1g --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 --repositories https://repo1.maven.org/maven2 --conf spark.sql.streaming.checkpointLocation=/tmp/spark-checkpoints --conf spark.sql.warehouse.dir=hdfs://mycluster/user/hive/warehouse --conf spark.hadoop.fs.defaultFS=hdfs://mycluster --conf spark.hadoop.dfs.client.failover.proxy.provider.mycluster=org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider --conf spark.hadoop.dfs.ha.namenodes.mycluster=nn1,nn2 --conf spark.hadoop.dfs.namenode.rpc-address.mycluster.nn1=namenode:9000 --conf spark.hadoop.dfs.namenode.rpc-address.mycluster.nn2=namenode-standby:9000 --conf spark.sql.adaptive.enabled=true src/consumer.py "
     ports:
       - "4040:4040" # Spark UI
     networks:
@@ -228,6 +504,10 @@ services:
         condition: service_healthy
       datanode:
         condition: service_healthy
+      datanode2:
+        condition: service_started
+      datanode3:
+        condition: service_started
     environment:
       - DASHBOARD_PORT=5000
       - DASHBOARD_DEBUG=${DASHBOARD_DEBUG:-False}
@@ -251,7 +531,13 @@ services:
 
 volumes:
   namenode_data:
+  namenode_standby_data:
   datanode_data:
+  datanode2_data:
+  datanode3_data:
+  journalnode1_data:
+  journalnode2_data:
+  journalnode3_data:
   checkpoints_data:
 
 

@@ -1,12 +1,14 @@
-# Dockerfile for Producer - preinstall Python deps to avoid runtime pip issues
+# Dockerfile for Producer - optimizado para tamaño mínimo
 FROM python:3.10-slim
 
-# Install system dependencies if needed (curl/ca-certs already present in slim)
-RUN pip install --no-cache-dir --upgrade pip
+# Combinar comandos para reducir capas y limpiar caché
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
-# Copy requirements and install
+# Copy requirements and install en un solo paso
 COPY producer/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && \
+    rm -rf /tmp/requirements.txt && \
+    pip cache purge || true
 
 # Create app dir (code will be volume-mounted at runtime)
 WORKDIR /app

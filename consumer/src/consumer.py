@@ -25,6 +25,8 @@ def main():
         .config("spark.sql.warehouse.dir", f"hdfs://{HDFS_NAMENODE}:{HDFS_PORT}/user/hive/warehouse") \
         .config("spark.hadoop.fs.defaultFS", f"hdfs://{HDFS_NAMENODE}:{HDFS_PORT}") \
         .config("spark.sql.streaming.checkpointLocation", CHECKPOINT_LOCATION) \
+        .config("hive.metastore.uris", HIVE_METASTORE_URI) \
+        .config("spark.sql.catalogImplementation", "hive") \
         .enableHiveSupport() \
         .getOrCreate()
     
@@ -35,6 +37,7 @@ def main():
     print(f"📨 Topic: {KAFKA_TOPIC}")
     print(f"💾 HDFS: hdfs://{HDFS_NAMENODE}:{HDFS_PORT}")
     
+    query = None
     try:
         # Configurar tabla de Hive (una sola vez al inicio)
         print("🗃️  Configurando tablas de Hive...")
@@ -61,11 +64,15 @@ def main():
         
     except KeyboardInterrupt:
         print("\n⏹️  Deteniendo consumer...")
-        query.stop()
+        if query:
+            query.stop()
         spark.stop()
         print("✅ Consumer detenido correctamente")
     except Exception as e:
         print(f"❌ Error en consumer: {e}")
+        if query:
+            query.stop()
+        spark.stop()
         raise
 
 if __name__ == "__main__":

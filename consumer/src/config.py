@@ -15,7 +15,8 @@ HDFS_GROUP = os.getenv("HDFS_GROUP", "amalia")
 PROJECT_NAME = os.getenv("PROJECT_NAME", "energy_data")
 
 # Kafka Configuration
-KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:9092")
+# Múltiples brokers para alta disponibilidad (separados por comas)
+KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:9092,kafka2:9093,kafka3:9094")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "energy_stream")
 
 # HDFS Configuration
@@ -28,8 +29,11 @@ HDFS_PATH = f"hdfs://{HDFS_NAMENODE}:{HDFS_PORT}{HDFS_BASE_PATH}"
 HIVE_METASTORE_URI = os.getenv("HIVE_METASTORE_URI", "thrift://hive-metastore:9083")
 HIVE_TABLE_NAME = os.getenv("HIVE_TABLE_NAME", "energy_data")
 
-# Checkpoint Configuration
-CHECKPOINT_LOCATION = os.getenv("SPARK_CHECKPOINT_LOCATION", "/tmp/spark-checkpoints")
+# Checkpoint Configuration (usar HDFS para que sobreviva a reinicios)
+CHECKPOINT_LOCATION = os.getenv(
+    "SPARK_CHECKPOINT_LOCATION",
+    f"hdfs://{HDFS_NAMENODE}:{HDFS_PORT}{HDFS_BASE_PATH}/_checkpoints"
+)
 SPARK_PROCESSING_INTERVAL = os.getenv("SPARK_PROCESSING_INTERVAL", "60")
 SPARK_APP_NAME = os.getenv("SPARK_APP_NAME", "EnergyDataConsumer")
 

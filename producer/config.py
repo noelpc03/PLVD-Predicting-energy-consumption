@@ -10,10 +10,12 @@ except ImportError:
     pass
 
 # Kafka Configuration
-KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:9092")
+# Múltiples brokers para alta disponibilidad (separados por comas)
+KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:9092,kafka2:9093,kafka3:9094")
 TOPIC = os.getenv("KAFKA_TOPIC", "energy_stream")
 
 # Producer Configuration
-SEND_INTERVAL = float(os.getenv("PRODUCER_SEND_INTERVAL", "0.5"))  # segundos entre cada registro
+# Default: 0 (envío lo más rápido posible); se puede ralentizar con env
+SEND_INTERVAL = float(os.getenv("PRODUCER_SEND_INTERVAL", "0"))  # segundos entre cada registro
 DATASET_PATH = os.getenv("PRODUCER_DATASET_PATH", "data/dataset.txt")
 MAX_RETRIES = int(os.getenv("PRODUCER_MAX_RETRIES", "3"))  # cantidad de reintentos si falla

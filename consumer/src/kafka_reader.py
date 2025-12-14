@@ -32,7 +32,7 @@ def create_kafka_stream(spark, config):
         .format("kafka") \
         .option("kafka.bootstrap.servers", config.KAFKA_BROKER) \
         .option("subscribe", config.KAFKA_TOPIC) \
-        .option("startingOffsets", "latest") \
+        .option("startingOffsets", "earliest") \
         .option("failOnDataLoss", "false") \
         .load()
     

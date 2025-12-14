@@ -1,7 +1,7 @@
 # data_transformer.py - Transforma y valida los datos del stream
 
 from pyspark.sql import DataFrame
-from pyspark.sql.functions import col, year, month, dayofmonth, hour, when
+from pyspark.sql.functions import col, year, month, dayofmonth, hour, when, greatest
 from pyspark.sql.types import DoubleType
 
 def transform_data(df: DataFrame) -> DataFrame:
@@ -34,12 +34,12 @@ def transform_data(df: DataFrame) -> DataFrame:
         .otherwise(col("global_reactive_power"))
     )
     
-    # Agregar columna de zona (para análisis)
-    # Puedes personalizar esto según tus necesidades
+    # Agregar columna de zona (elige el mayor consumo entre los tres submeterings)
+    max_meter = greatest("sub_metering_1", "sub_metering_2", "sub_metering_3")
     df_with_zones = df_validated.withColumn(
         "zone",
-        when(col("sub_metering_1") > col("sub_metering_2"), "zone1")
-        .when(col("sub_metering_2") > col("sub_metering_3"), "zone2")
+        when(max_meter == col("sub_metering_1"), "zone1")
+        .when(max_meter == col("sub_metering_2"), "zone2")
         .otherwise("zone3")
     )
     

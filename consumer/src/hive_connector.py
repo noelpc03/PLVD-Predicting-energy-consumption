@@ -45,6 +45,9 @@ def setup_hive_table(spark: SparkSession, hdfs_path: str, table_name=None):
     try:
         spark.sql(create_table_sql)
         print(f"✅ Tabla Hive '{table_name}' creada/actualizada en {hdfs_data_path}")
+        # Descubrir particiones recién escritas
+        spark.sql(f"MSCK REPAIR TABLE {table_name}")
+        print(f"🔄 Particiones reparadas para '{table_name}'")
     except Exception as e:
         print(f"⚠️  Error al crear tabla: {e}")
         print("   Esto es normal en la primera ejecución, las particiones se detectarán automáticamente")

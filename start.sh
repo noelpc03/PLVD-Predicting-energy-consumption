@@ -27,6 +27,12 @@ print_info() {
     echo -e "${BLUE}ℹ️  $1${NC}"
 }
 
+# Timeouts amplios para docker compose y buildkit (descargas lentas)
+export COMPOSE_HTTP_TIMEOUT=${COMPOSE_HTTP_TIMEOUT:-600}
+export DOCKER_CLIENT_TIMEOUT=${DOCKER_CLIENT_TIMEOUT:-600}
+export BUILDKIT_STEP_LOG_MAX_SIZE=${BUILDKIT_STEP_LOG_MAX_SIZE:-10485760}
+export DOCKER_BUILDKIT=1
+
 # Crear .env si no existe (copiando desde .env.example)
 if [ ! -f ".env" ]; then
     if [ -f ".env.example" ]; then
@@ -145,8 +151,8 @@ echo "=========================================="
 echo ""
 
 # Fase 1: Servicios base
-print_info "Fase 1: Iniciando Zookeeper, Kafka, HDFS..."
-docker compose up -d zookeeper kafka namenode datanode
+print_info "Fase 1: Iniciando Zookeeper, Kafka (3 brokers), JournalNodes, HDFS..."
+docker compose up -d zookeeper kafka kafka2 kafka3 journalnode1 journalnode2 journalnode3 namenode namenode-standby datanode datanode2 datanode3
 
 print_info "Esperando a que los servicios estén listos (60 segundos)..."
 for i in {60..1}; do
@@ -160,25 +166,60 @@ print_info "Verificando estado de los servicios..."
 sleep 5
 
 KAFKA_HEALTHY=$(docker inspect --format='{{.State.Health.Status}}' kafka 2>/dev/null || echo "starting")
+KAFKA2_HEALTHY=$(docker inspect --format='{{.State.Health.Status}}' kafka2 2>/dev/null || echo "starting")
+KAFKA3_HEALTHY=$(docker inspect --format='{{.State.Health.Status}}' kafka3 2>/dev/null || echo "starting")
 NAMENODE_HEALTHY=$(docker inspect --format='{{.State.Health.Status}}' namenode 2>/dev/null || echo "starting")
+NAMENODE_STANDBY_HEALTHY=$(docker inspect --format='{{.State.Health.Status}}' namenode-standby 2>/dev/null || echo "starting")
 DATANODE_HEALTHY=$(docker inspect --format='{{.State.Health.Status}}' datanode 2>/dev/null || echo "starting")
+DATANODE2_HEALTHY=$(docker inspect --format='{{.State.Health.Status}}' datanode2 2>/dev/null || echo "starting")
+DATANODE3_HEALTHY=$(docker inspect --format='{{.State.Health.Status}}' datanode3 2>/dev/null || echo "starting")
 
 if [ "$KAFKA_HEALTHY" == "healthy" ]; then
-    print_success "Kafka está listo"
+    print_success "Kafka Broker 1 está listo"
 else
-    print_warning "Kafka aún está inicializando (estado: $KAFKA_HEALTHY)"
+    print_warning "Kafka Broker 1 aún está inicializando (estado: $KAFKA_HEALTHY)"
+fi
+
+if [ "$KAFKA2_HEALTHY" == "healthy" ]; then
+    print_success "Kafka Broker 2 está listo"
+else
+    print_warning "Kafka Broker 2 aún está inicializando (estado: $KAFKA2_HEALTHY)"
+fi
+
+if [ "$KAFKA3_HEALTHY" == "healthy" ]; then
+    print_success "Kafka Broker 3 está listo"
+else
+    print_warning "Kafka Broker 3 aún está inicializando (estado: $KAFKA3_HEALTHY)"
 fi
 
 if [ "$NAMENODE_HEALTHY" == "healthy" ]; then
-    print_success "NameNode está listo"
+    print_success "NameNode (Activo) está listo"
 else
-    print_warning "NameNode aún está inicializando (estado: $NAMENODE_HEALTHY)"
+    print_warning "NameNode (Activo) aún está inicializando (estado: $NAMENODE_HEALTHY)"
+fi
+
+if [ "$NAMENODE_STANDBY_HEALTHY" == "healthy" ]; then
+    print_success "NameNode (Standby) está listo"
+else
+    print_warning "NameNode (Standby) aún está inicializando (estado: $NAMENODE_STANDBY_HEALTHY)"
 fi
 
 if [ "$DATANODE_HEALTHY" == "healthy" ]; then
     print_success "DataNode está listo"
 else
     print_warning "DataNode aún está inicializando (estado: $DATANODE_HEALTHY)"
+fi
+
+if [ "$DATANODE2_HEALTHY" == "healthy" ]; then
+    print_success "DataNode2 está listo"
+else
+    print_warning "DataNode2 aún está inicializando (estado: $DATANODE2_HEALTHY)"
+fi
+
+if [ "$DATANODE3_HEALTHY" == "healthy" ]; then
+    print_success "DataNode3 está listo"
+else
+    print_warning "DataNode3 aún está inicializando (estado: $DATANODE3_HEALTHY)"
 fi
 
 echo ""
