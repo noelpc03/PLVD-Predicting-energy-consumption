@@ -1,7 +1,6 @@
 # ============================================
 # ARCHIVOS DE CONFIGURACIÓN SENSIBLES
 # ============================================
-.env
 .env.local
 .env.*.local
 
