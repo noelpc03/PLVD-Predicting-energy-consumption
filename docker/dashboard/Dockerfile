@@ -21,8 +21,12 @@ RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /
 WORKDIR /app
 
 # Copiar requirements e instalar dependencias
+# Aumentar timeout y retries para conexiones lentas
 COPY board/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir \
+    --timeout=10000 \
+    --retries=5 \
+    -r requirements.txt
 
 # Copiar código de la aplicación
 COPY board/ .
