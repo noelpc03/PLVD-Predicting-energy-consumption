@@ -2,22 +2,21 @@
 
 from pyspark.sql import DataFrame
 from pyspark.sql import SparkSession
-from config import HDFS_PATH, SPARK_PROCESSING_INTERVAL
+from config import HDFS_STREAMING_PATH, SPARK_PROCESSING_INTERVAL
 
-def write_to_hdfs(df: DataFrame, config, checkpoint_location: str):
+def write_to_hdfs(df: DataFrame, checkpoint_location: str):
     """
     Escribe el stream de datos a HDFS en formato Parquet
     
     Args:
         df: DataFrame transformado
-        config: objeto de configuración
         checkpoint_location: ubicación de los checkpoints
     
     Returns:
         StreamingQuery object
     """
-    # Path de HDFS para escribir los datos
-    hdfs_output_path = f"{config.HDFS_PATH}/streaming"
+    # Path de HDFS para escribir los datos (definido centralmente en config.py)
+    hdfs_output_path = HDFS_STREAMING_PATH
     
     # Intervalo de procesamiento desde configuración
     processing_interval = f"{SPARK_PROCESSING_INTERVAL} seconds"

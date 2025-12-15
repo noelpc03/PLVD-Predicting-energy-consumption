@@ -15,19 +15,28 @@ def main():
 
     print(f"📤 Inicio de envío de {len(df)} registros cada {SEND_INTERVAL} segundos al topic '{TOPIC}'...")
 
+    failed_messages = 0
     for idx, (_, row) in enumerate(df.iterrows(), 1):
         message = build_message(row)
-        send_message(producer, message)
+        success = send_message(producer, message)
+        
+        if not success:
+            failed_messages += 1
         
         if idx % 100 == 0:
-            print(f"📊 Procesados {idx}/{len(df)} registros...")
+            print(f"📊 Procesados {idx}/{len(df)} registros... "
+                  f"(fallidos: {failed_messages})")
 
         # Opcional: pausar si se configuró un intervalo
         if SEND_INTERVAL > 0:
             time.sleep(SEND_INTERVAL)
 
     producer.close()
-    print("✅ Todos los mensajes enviados.")
+    if failed_messages == 0:
+        print(f"✅ Todos los {len(df)} mensajes enviados exitosamente.")
+    else:
+        print(f"⚠️  Proceso completado: {len(df) - failed_messages}/{len(df)} mensajes enviados, "
+              f"{failed_messages} fallaron.")
 
 if __name__ == "__main__":
     main()

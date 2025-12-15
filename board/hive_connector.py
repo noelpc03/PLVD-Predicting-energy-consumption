@@ -12,20 +12,65 @@ try:
 except ImportError:
     pass
 
-HDFS_NAMENODE = os.getenv("HDFS_NAMENODE", "namenode")
-HDFS_PORT = int(os.getenv("HDFS_PORT", "9000"))
+# Configuración de HDFS
+# NOTA: Usamos 'hdfs://mycluster' directamente (no 'namenode:9000') porque el cluster
+# está configurado con High Availability (HA) en docker-compose.yml
 HDFS_USER = os.getenv("HDFS_USER", "amalia")
 PROJECT_NAME = os.getenv("PROJECT_NAME", "energy_data")
 HIVE_TABLE_NAME = os.getenv("HIVE_TABLE_NAME", "energy_data")
 
-# Path de datos en HDFS
-HDFS_DATA_PATH = f"hdfs://{HDFS_NAMENODE}:{HDFS_PORT}/user/{HDFS_USER}/{PROJECT_NAME}/streaming"
+# Path de datos en HDFS usando el nombre del cluster (mycluster) para HA
+# Este path es usado por todas las queries SQL para leer datos Parquet
+HDFS_DATA_PATH = f"hdfs://mycluster/user/{HDFS_USER}/{PROJECT_NAME}/streaming"
+
+# Path del script spark_query.py dentro del contenedor spark-consumer
+# Según docker-compose.yml: volumen ../consumer:/app/consumer, working_dir: /app/consumer
+SPARK_QUERY_SCRIPT_PATH = os.getenv("SPARK_QUERY_SCRIPT_PATH", "/app/consumer/spark_query.py")
+
+def _get_spark_query_script_path():
+    """
+    Obtiene el path correcto del script spark_query.py dentro del contenedor.
+    Intenta verificar que el archivo existe, si no, usa paths alternativos.
+    
+    Returns:
+        str: Path del script spark_query.py
+    """
+    # Paths posibles según la configuración del contenedor
+    possible_paths = [
+        SPARK_QUERY_SCRIPT_PATH,  # Path absoluto según volumen montado
+        "/app/consumer/spark_query.py",  # Path absoluto estándar
+        "spark_query.py",  # Path relativo desde working_dir (/app/consumer)
+    ]
+    
+    # Intentar verificar que el archivo existe en el contenedor
+    for path in possible_paths:
+        try:
+            # Verificar si el archivo existe en el contenedor
+            check_cmd = ['docker', 'exec', 'spark-consumer', 'test', '-f', path]
+            result = subprocess.run(
+                check_cmd,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                return path
+        except (subprocess.TimeoutExpired, Exception):
+            # Si falla la verificación, continuar con el siguiente path
+            continue
+    
+    # Si no se pudo verificar, usar el path por defecto (más probable según docker-compose)
+    # El working_dir es /app/consumer, así que el path relativo debería funcionar
+    return "spark_query.py"
 
 def execute_spark_sql(query: str) -> pd.DataFrame:
     """Ejecuta una query SQL usando PySpark en el contenedor spark-consumer"""
     try:
+        # Obtener el path correcto del script
+        script_path = _get_spark_query_script_path()
+        
         # Ejecutar script Python usando spark-submit dentro del contenedor de Spark
-        hdfs_uri = f"hdfs://{HDFS_NAMENODE}:{HDFS_PORT}"
+        hdfs_uri = f"hdfs://mycluster"
         cmd = [
             'docker', 'exec', 'spark-consumer',
             '/opt/spark/bin/spark-submit',
@@ -34,7 +79,7 @@ def execute_spark_sql(query: str) -> pd.DataFrame:
             '--executor-memory', '512m',  # Reducir memoria del executor
             '--conf', f'spark.hadoop.fs.defaultFS={hdfs_uri}',
             '--conf', 'spark.driver.maxResultSize=256m',  # Limitar tamaño de resultados
-            '/app/consumer/spark_query.py',
+            script_path,  # Usar el path determinado dinámicamente
             query,
             hdfs_uri
         ]
@@ -48,7 +93,26 @@ def execute_spark_sql(query: str) -> pd.DataFrame:
         
         if result.returncode != 0:
             error_msg = result.stderr or result.stdout
-            print(f"Error ejecutando Spark SQL: {error_msg[:500]}")
+            # Mensaje de error más informativo
+            error_details = (
+                f"Error ejecutando Spark SQL:\n"
+                f"   Script usado: {script_path}\n"
+                f"   Query: {query[:100]}...\n"
+                f"   Error: {error_msg[:500]}"
+            )
+            print(error_details)
+            
+            # Si el error sugiere que el archivo no existe, proporcionar ayuda adicional
+            if "No such file" in error_msg or "cannot find" in error_msg.lower():
+                print(
+                    f"\n⚠️  El script spark_query.py no se encontró en el path: {script_path}\n"
+                    f"   Verifica que:\n"
+                    f"   - El volumen está montado correctamente en docker-compose.yml\n"
+                    f"   - El archivo consumer/spark_query.py existe en el host\n"
+                    f"   - El contenedor spark-consumer está corriendo\n"
+                    f"   - El working_dir del contenedor es /app/consumer"
+                )
+            
             return pd.DataFrame()
         
         # Parsear JSON output

@@ -1,10 +1,31 @@
 # data_loader.py
 
+import os
 import pandas as pd
 from config import DATASET_PATH
 
 def load_data():
     """Carga y limpia el dataset de consumo energético"""
+    # Validar que el archivo existe antes de intentar leerlo
+    if not os.path.exists(DATASET_PATH):
+        error_msg = (
+            f"❌ Error: El archivo del dataset no se encuentra en la ruta especificada.\n"
+            f"   Ruta buscada: {os.path.abspath(DATASET_PATH)}\n"
+            f"   Ruta actual de trabajo: {os.getcwd()}\n"
+            f"   Por favor, verifica que el archivo existe y que la variable de entorno\n"
+            f"   PRODUCER_DATASET_PATH apunta a la ubicación correcta."
+        )
+        raise FileNotFoundError(error_msg)
+    
+    # Verificar que es un archivo (no un directorio)
+    if not os.path.isfile(DATASET_PATH):
+        error_msg = (
+            f"❌ Error: La ruta especificada no es un archivo.\n"
+            f"   Ruta: {os.path.abspath(DATASET_PATH)}\n"
+            f"   Por favor, verifica que la ruta apunta a un archivo válido."
+        )
+        raise ValueError(error_msg)
+    
     # Leer dataset
     df = pd.read_csv(DATASET_PATH, sep=';', low_memory=False)
 

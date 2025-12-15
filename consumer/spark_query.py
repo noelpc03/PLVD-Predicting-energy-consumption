@@ -18,7 +18,7 @@ def main():
         # Crear SparkSession sin Hive
         spark = SparkSession.builder \
             .appName("DashboardQuery") \
-            .config("spark.hadoop.fs.defaultFS", sys.argv[2] if len(sys.argv) > 2 else "hdfs://namenode:9000") \
+            .config("spark.hadoop.fs.defaultFS", sys.argv[2] if len(sys.argv) > 2 else "hdfs://mycluster") \
             .getOrCreate()
         
         # Redirigir logs de Spark a stderr para que no interfieran con stdout

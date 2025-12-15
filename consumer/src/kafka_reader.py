@@ -3,14 +3,14 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, TimestampType
+from config import KAFKA_BROKER, KAFKA_TOPIC
 
-def create_kafka_stream(spark, config):
+def create_kafka_stream(spark):
     """
     Crea un stream de Spark leyendo de Kafka
     
     Args:
         spark: SparkSession
-        config: objeto de configuración
     
     Returns:
         DataFrame del stream de Kafka
@@ -30,8 +30,8 @@ def create_kafka_stream(spark, config):
     # Leer stream de Kafka
     df_raw = spark.readStream \
         .format("kafka") \
-        .option("kafka.bootstrap.servers", config.KAFKA_BROKER) \
-        .option("subscribe", config.KAFKA_TOPIC) \
+        .option("kafka.bootstrap.servers", KAFKA_BROKER) \
+        .option("subscribe", KAFKA_TOPIC) \
         .option("startingOffsets", "earliest") \
         .option("failOnDataLoss", "false") \
         .load()

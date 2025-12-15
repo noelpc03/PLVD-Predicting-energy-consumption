@@ -19,11 +19,15 @@ def main():
     Lee datos de Kafka, los transforma y escribe en HDFS
     """
     
+    # Construir URI de HDFS usando la configuración (consistente con docker-compose.yml)
+    # HDFS_URI y HDFS_CLUSTER_NAME vienen de config.py
+    HDFS_WAREHOUSE_DIR = f"{HDFS_URI}/user/hive/warehouse"
+    
     # Crear Spark Session con soporte para Kafka, Hive y HDFS
     spark = SparkSession.builder \
         .appName(SPARK_APP_NAME) \
-        .config("spark.sql.warehouse.dir", f"hdfs://{HDFS_NAMENODE}:{HDFS_PORT}/user/hive/warehouse") \
-        .config("spark.hadoop.fs.defaultFS", f"hdfs://{HDFS_NAMENODE}:{HDFS_PORT}") \
+        .config("spark.sql.warehouse.dir", HDFS_WAREHOUSE_DIR) \
+        .config("spark.hadoop.fs.defaultFS", HDFS_URI) \
         .config("spark.sql.streaming.checkpointLocation", CHECKPOINT_LOCATION) \
         .config("hive.metastore.uris", HIVE_METASTORE_URI) \
         .config("spark.sql.catalogImplementation", "hive") \
@@ -35,7 +39,7 @@ def main():
     print("🚀 Iniciando Consumer de datos energéticos...")
     print(f"📡 Broker Kafka: {KAFKA_BROKER}")
     print(f"📨 Topic: {KAFKA_TOPIC}")
-    print(f"💾 HDFS: hdfs://{HDFS_NAMENODE}:{HDFS_PORT}")
+    print(f"💾 HDFS: {HDFS_URI}")
     
     query = None
     try:
@@ -45,7 +49,7 @@ def main():
         
         # 1. Leer stream de Kafka
         print("\n📖 Leyendo stream de Kafka...")
-        df_stream = create_kafka_stream(spark, type('Config', (), globals()))
+        df_stream = create_kafka_stream(spark)
         
         # 2. Transformar datos
         print("🔄 Transformando datos...")
@@ -53,7 +57,7 @@ def main():
         
         # 3. Escribir en HDFS
         print("💾 Escribiendo en HDFS...")
-        query = write_to_hdfs(df_transformed, type('Config', (), globals()), CHECKPOINT_LOCATION)
+        query = write_to_hdfs(df_transformed, CHECKPOINT_LOCATION)
         
         print("\n✅ Consumer iniciado correctamente")
         print("📊 Procesando stream continuamente...")

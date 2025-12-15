@@ -20,6 +20,21 @@ Dataset → Producer (Python) → Kafka → Consumer (Spark) → HDFS (Parquet) 
 
 ## 🚀 Inicio Rápido (3 Pasos)
 
+### **Paso 0: Configuración (Opcional)**
+El proyecto incluye un archivo `.env.example` con todas las variables de entorno configurables.
+Si necesitas personalizar la configuración:
+
+```bash
+# Copiar el archivo de ejemplo
+cp .env.example .env
+
+# Editar con tus valores personalizados (opcional)
+# Los valores por defecto funcionan con la configuración estándar
+```
+
+**Nota:** El archivo `.env` está en `.gitignore` y no se subirá al repositorio. 
+El archivo `.env.example` contiene valores por defecto que funcionan con la configuración estándar.
+
 ### **Paso 1: Verificar Requisitos**
 ```bash
 ./check-requirements.sh
