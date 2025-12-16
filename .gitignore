@@ -237,3 +237,8 @@ board/__pycache__/
 # ============================================
 # Mantener .env.example pero ignorar .env
 .env.example  # Este SÍ debe estar en git como template
+
+ANALISIS_CAPAS.md
+COMANDOS_VERIFICACION.md
+OPTIMIZACIONES_APLICADAS.md
+TIEMPOS_NORMALES.md

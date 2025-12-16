@@ -15,10 +15,14 @@ def main():
     query = sys.argv[1]
     
     try:
-        # Crear SparkSession sin Hive
+        # Crear SparkSession con Hive support para usar tablas registradas
+        hdfs_uri = sys.argv[2] if len(sys.argv) > 2 else "hdfs://namenode:9000"
         spark = SparkSession.builder \
             .appName("DashboardQuery") \
-            .config("spark.hadoop.fs.defaultFS", sys.argv[2] if len(sys.argv) > 2 else "hdfs://namenode:9000") \
+            .config("spark.sql.warehouse.dir", f"{hdfs_uri}/user/hive/warehouse") \
+            .config("spark.hadoop.fs.defaultFS", hdfs_uri) \
+            .config("hive.metastore.uris", "thrift://hive-metastore:9083") \
+            .enableHiveSupport() \
             .getOrCreate()
         
         # Redirigir logs de Spark a stderr para que no interfieran con stdout

@@ -1,8 +1,9 @@
 // dashboard.js - JavaScript para el dashboard de energía
 
 // Configuración
-const UPDATE_INTERVAL = 5000; // 5 segundos
+const UPDATE_INTERVAL = 30000; // 30 segundos - reducido para evitar saturación
 const API_BASE = '';
+const QUERY_DELAY = 2000; // 2 segundos entre queries para evitar saturación
 
 // Variables globales para los gráficos
 let timeSeriesChart = null;
@@ -216,20 +217,32 @@ function initializeCharts() {
     });
 }
 
-// Cargar todos los datos
+// Cargar todos los datos (secuencial con delays para evitar saturación)
 async function loadData() {
     try {
-        await Promise.all([
-            loadStatistics(),
-            loadTimeSeries(),
-            loadHourly(),
-            loadLatestData()
-        ]);
+        // Cargar en secuencia con delays para evitar saturación de Spark
+        await loadStatistics();
+        await sleep(QUERY_DELAY);
+
+        await loadTimeSeries();
+        await sleep(QUERY_DELAY);
+
+        await loadHourly();
+        await sleep(QUERY_DELAY);
+
+        await loadLatestData();
+
         updateLastUpdateTime();
+        updateStatus(true);
     } catch (error) {
         console.error('Error cargando datos:', error);
         updateStatus(false);
     }
+}
+
+// Función auxiliar para delays
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // Cargar estadísticas
@@ -238,24 +251,24 @@ async function loadStatistics() {
         const response = await fetch(`${API_BASE}/api/statistics`);
         const result = await response.json();
 
-        if (result.success && result.data) {
+        if (result.success && result.data && Object.keys(result.data).length > 0) {
             const stats = result.data;
 
             // Actualizar tarjetas de estadísticas
             document.getElementById('stat-avg-power').textContent =
-                stats.avg_active_power ? stats.avg_active_power.toFixed(2) : '--';
+                (stats.avg_active_power !== undefined && stats.avg_active_power !== null)
+                    ? stats.avg_active_power.toFixed(2) : '--';
             document.getElementById('stat-avg-voltage').textContent =
-                stats.avg_voltage ? stats.avg_voltage.toFixed(1) : '--';
+                (stats.avg_voltage !== undefined && stats.avg_voltage !== null)
+                    ? stats.avg_voltage.toFixed(1) : '--';
             document.getElementById('stat-avg-intensity').textContent =
-                stats.avg_intensity ? stats.avg_intensity.toFixed(2) : '--';
+                (stats.avg_intensity !== undefined && stats.avg_intensity !== null)
+                    ? stats.avg_intensity.toFixed(2) : '--';
             document.getElementById('stat-total-records').textContent =
-                stats.total_records ? stats.total_records.toLocaleString() : '--';
-
-            // Actualizar gráfico de sub-metering
-            if (stats.total_sub_metering) {
-                // Usar valores de la última consulta o valores por defecto
-                updateSubMeteringChart([0, 0, 0]);
-            }
+                (stats.total_records !== undefined && stats.total_records !== null)
+                    ? stats.total_records.toLocaleString() : '--';
+        } else {
+            console.warn('Statistics endpoint returned empty data');
         }
     } catch (error) {
         console.error('Error cargando estadísticas:', error);
@@ -305,6 +318,9 @@ async function loadHourly() {
             hourlyChart.data.labels = labels;
             hourlyChart.data.datasets[0].data = powerData;
             hourlyChart.update('none');
+        } else {
+            console.warn('Hourly endpoint returned empty data');
+            // Mantener gráfico vacío en lugar de ocultarlo
         }
     } catch (error) {
         console.error('Error cargando datos por hora:', error);
@@ -335,11 +351,15 @@ async function loadLatestData() {
             // Actualizar sub-metering chart con los últimos datos
             if (result.data.length > 0) {
                 const latest = result.data[0];
-                updateSubMeteringChart([
-                    latest.sub_metering_1 || 0,
-                    latest.sub_metering_2 || 0,
-                    latest.sub_metering_3 || 0
-                ]);
+                // Calcular totales de sub-metering de los últimos registros para mejor visualización
+                const totals = result.data.reduce((acc, row) => {
+                    acc[0] += (row.sub_metering_1 || 0);
+                    acc[1] += (row.sub_metering_2 || 0);
+                    acc[2] += (row.sub_metering_3 || 0);
+                    return acc;
+                }, [0, 0, 0]);
+
+                updateSubMeteringChart(totals);
             }
         }
     } catch (error) {

@@ -171,6 +171,7 @@ services:
       context: .
       dockerfile: spark-consumer/Dockerfile
     container_name: spark-consumer
+    mem_limit: 4g # Aumentar memoria para queries del dashboard
     env_file:
       - ../.env
     depends_on:
@@ -211,7 +212,6 @@ services:
     dns:
       - 8.8.8.8
       - 1.1.1.1
-    mem_limit: 2g # Límite de memoria para Spark
     mem_reservation: 1g
     restart: unless-stopped # Reiniciar automáticamente si se cae
 

@@ -4,6 +4,7 @@ import subprocess
 import json
 import pandas as pd
 from typing import Optional, List, Dict
+from cache_helper import get_cached, set_cached, cached
 
 # Cargar variables de entorno
 try:
@@ -30,10 +31,14 @@ def execute_spark_sql(query: str) -> pd.DataFrame:
             'docker', 'exec', 'spark-consumer',
             '/opt/spark/bin/spark-submit',
             '--master', 'local[1]',
-            '--driver-memory', '512m',  # Reducir memoria del driver
-            '--executor-memory', '512m',  # Reducir memoria del executor
+            '--driver-memory', '512m',  # Mínimo requerido por Spark (471MB)
+            '--executor-memory', '512m',
             '--conf', f'spark.hadoop.fs.defaultFS={hdfs_uri}',
-            '--conf', 'spark.driver.maxResultSize=256m',  # Limitar tamaño de resultados
+            '--conf', f'spark.sql.warehouse.dir={hdfs_uri}/user/hive/warehouse',
+            '--conf', 'spark.driver.maxResultSize=128m',  # Reducido tamaño de resultados
+            '--conf', 'spark.sql.shuffle.partitions=2',  # Reducir particiones para queries pequeñas
+            '--conf', 'spark.default.parallelism=2',  # Reducir paralelismo
+            '--conf', 'hive.metastore.uris=thrift://hive-metastore:9083',
             '/app/consumer/spark_query.py',
             query,
             hdfs_uri
@@ -48,27 +53,67 @@ def execute_spark_sql(query: str) -> pd.DataFrame:
         
         if result.returncode != 0:
             error_msg = result.stderr or result.stdout
-            print(f"Error ejecutando Spark SQL: {error_msg[:500]}")
+            # Solo imprimir si es un error real, no warnings
+            if 'error' in error_msg.lower() and 'warning' not in error_msg.lower():
+                print(f"Error ejecutando Spark SQL: {error_msg[:500]}")
             return pd.DataFrame()
         
-        # Parsear JSON output
-        output = result.stdout.strip()
-        if not output:
-            return pd.DataFrame()
+        # Parsear JSON output - extraer solo la línea JSON válida
+        output_lines = result.stdout.strip().split('\n')
+        json_line = None
+        
+        # Buscar la línea que contiene JSON válido (empieza con [ o { y no contiene logs)
+        for line in reversed(output_lines):
+            line = line.strip()
+            if not line:
+                continue
+            # Verificar que sea JSON válido (no logs de Spark)
+            if (line.startswith('[') or line.startswith('{')) and not line.startswith('[INFO') and not line.startswith('[WARN') and not line.startswith('[ERROR'):
+                # Intentar parsear para verificar que sea JSON válido
+                try:
+                    json.loads(line)
+                    json_line = line
+                    break
+                except json.JSONDecodeError:
+                    continue
+        
+        if not json_line:
+            # Si no encontramos JSON, puede ser que el output esté vacío o malformado
+            # Intentar buscar en stderr también
+            if result.stderr:
+                stderr_lines = result.stderr.strip().split('\n')
+                for line in reversed(stderr_lines):
+                    line = line.strip()
+                    if line and (line.startswith('[') or line.startswith('{')):
+                        try:
+                            json.loads(line)
+                            json_line = line
+                            break
+                        except json.JSONDecodeError:
+                            continue
+            
+            if not json_line:
+                return pd.DataFrame()
         
         try:
-            data = json.loads(output)
+            data = json.loads(json_line)
             if isinstance(data, dict) and 'error' in data:
-                print(f"Error en query: {data['error']}")
+                print(f"Error en query: {data['error'][:200]}")
                 return pd.DataFrame()
-            if isinstance(data, list) and len(data) > 0:
-                df = pd.DataFrame(data)
+            if isinstance(data, list):
+                if len(data) > 0:
+                    df = pd.DataFrame(data)
+                else:
+                    df = pd.DataFrame()
+            elif isinstance(data, dict):
+                # Si es un solo diccionario, convertir a DataFrame con una fila
+                df = pd.DataFrame([data])
             else:
                 df = pd.DataFrame()
             return df
         except json.JSONDecodeError as e:
             print(f"Error parseando JSON: {e}")
-            print(f"Output: {output[:200]}")
+            print(f"JSON line: {json_line[:200]}")
             return pd.DataFrame()
         
     except subprocess.TimeoutExpired:
@@ -89,10 +134,11 @@ def execute_query_python(query_func):
         print(f"Error en query: {e}")
         return pd.DataFrame()
 
+@cached(ttl=30)  # Cachear por 30 segundos (datos recientes)
 def get_latest_data(limit: int = 100) -> List[Dict]:
     """Obtiene los últimos N registros"""
     def query_func():
-        # Leer directamente desde Parquet sin usar tabla Hive
+        # Usar tabla Hive registrada (más eficiente que leer directamente Parquet)
         return f"""
             SELECT 
                 datetime,
@@ -103,7 +149,7 @@ def get_latest_data(limit: int = 100) -> List[Dict]:
                 sub_metering_1,
                 sub_metering_2,
                 sub_metering_3
-            FROM parquet.`{HDFS_DATA_PATH}`
+            FROM {HIVE_TABLE_NAME}
             ORDER BY datetime DESC
             LIMIT {limit}
         """
@@ -125,10 +171,11 @@ def get_latest_data(limit: int = 100) -> List[Dict]:
         df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S')
     return df.to_dict('records')
 
+@cached(ttl=120)  # Cachear por 2 minutos
 def get_statistics() -> Dict:
     """Obtiene estadísticas agregadas"""
     def query_func():
-        # Leer directamente desde Parquet sin usar tabla Hive
+        # Usar tabla Hive registrada
         return f"""
             SELECT 
                 COUNT(*) as total_records,
@@ -138,7 +185,7 @@ def get_statistics() -> Dict:
                 AVG(voltage) as avg_voltage,
                 AVG(global_intensity) as avg_intensity,
                 SUM(sub_metering_1 + sub_metering_2 + sub_metering_3) as total_sub_metering
-            FROM parquet.`{HDFS_DATA_PATH}`
+            FROM {HIVE_TABLE_NAME}
         """
     
     df = execute_query_python(query_func)
@@ -156,22 +203,22 @@ def get_statistics() -> Dict:
                 pass
     return result
 
+@cached(ttl=60)  # Cachear por 1 minuto
 def get_time_series_data(hours: int = 24) -> List[Dict]:
     """Obtiene datos de series de tiempo agregados por datetime"""
     def query_func():
-        # Leer directamente desde Parquet sin usar tabla Hive
+        # Usar tabla Hive registrada - optimizado: limitar a 100 registros para mejor performance
         return f"""
             SELECT 
                 datetime,
-                AVG(global_active_power) as avg_active_power,
-                AVG(voltage) as avg_voltage,
-                AVG(global_intensity) as avg_intensity,
-                AVG(sub_metering_1) as sub_metering_1,
-                AVG(sub_metering_2) as sub_metering_2,
-                AVG(sub_metering_3) as sub_metering_3
-            FROM parquet.`{HDFS_DATA_PATH}`
+                global_active_power as avg_active_power,
+                voltage as avg_voltage,
+                global_intensity as avg_intensity,
+                sub_metering_1,
+                sub_metering_2,
+                sub_metering_3
+            FROM {HIVE_TABLE_NAME}
             WHERE datetime IS NOT NULL
-            GROUP BY datetime
             ORDER BY datetime DESC
             LIMIT 100
         """
@@ -193,19 +240,20 @@ def get_time_series_data(hours: int = 24) -> List[Dict]:
     df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S')
     return df.to_dict('records')
 
+@cached(ttl=300)  # Cachear por 5 minutos (los datos por hora cambian poco)
 def get_hourly_aggregates() -> List[Dict]:
     """Obtiene agregados por hora"""
     def query_func():
-        # Leer directamente desde Parquet sin usar tabla Hive
+        # Usar tabla Hive registrada - usar columna hour directamente (ya está particionada)
         return f"""
             SELECT 
-                HOUR(datetime) as hour,
+                hour,
                 AVG(global_active_power) as avg_active_power,
                 AVG(voltage) as avg_voltage,
                 COUNT(*) as record_count
-            FROM parquet.`{HDFS_DATA_PATH}`
+            FROM {HIVE_TABLE_NAME}
             WHERE datetime IS NOT NULL
-            GROUP BY HOUR(datetime)
+            GROUP BY hour
             ORDER BY hour ASC
         """
     
